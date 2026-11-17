@@ -1,0 +1,51 @@
+{
+  "name": "VibeDiet — AI Precision Nutrition",
+  "short_name": "VibeDiet",
+  "description": "Multimodal AI Precision Nutrition & Spatial Macro Intelligence",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090B10",
+  "theme_color": "#090B10",
+  "categories": [
+    "health",
+    "fitness",
+    "lifestyle",
+    "medical"
+  ],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan Barcode",
+      "short_name": "Barcode",
+      "description": "Scan food packaging barcode with camera",
+      "url": "/#barcode",
+      "icons": [
+        {
+          "src": "/icon.svg",
+          "sizes": "any"
+        }
+      ]
+    },
+    {
+      "name": "Log Meal",
+      "short_name": "Log",
+      "description": "Multimodal photo and voice meal logger",
+      "url": "/#photo",
+      "icons": [
+        {
+          "src": "/icon.svg",
+          "sizes": "any"
+        }
+      ]
+    }
+  ]
+}

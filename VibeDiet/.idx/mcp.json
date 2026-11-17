@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "obsidian-second-brain": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "./brain"
+      ],
+      "env": {
+        "VAULT_NAME": "VibeDiet-Brain",
+        "NODE_ENV": "development"
+      }
+    }
+  }
+}

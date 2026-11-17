@@ -1,0 +1,60 @@
+# ==============================================================================
+# VibeDiet Docker Build Ignore Rules (Zero-Leak Infrastructure Guard)
+# ==============================================================================
+
+# Secrets and Local Environment Configurations
+.env
+.env.*
+!.env.example
+.env.txt
+*.pem
+*.key
+*.cert
+service-account*.json
+
+# Logs, Diagnostic Dumps, and Runtime Artifacts
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Test Suites, Reports, and Playwright Artifacts
+tests/
+e2e/
+test-results/
+playwright-report/
+.nyc_output/
+coverage/
+proof-*.png
+
+# Local Databases, Tenants, and Ephemeral Storage
+.data/
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.local
+
+# Dependencies and Pre-existing Build Outputs (rebuilt cleanly in Stage 1)
+node_modules/
+dist/
+
+# Version Control and CI Workflows
+.git/
+.github/
+.gitignore
+
+# IDE, Editor, and Container Workspaces
+.cursor/
+.idx/
+.devcontainer/
+.vscode/
+.idea/
+
+# Temporary and Cache Files
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db

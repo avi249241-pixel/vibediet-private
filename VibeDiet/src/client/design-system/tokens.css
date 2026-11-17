@@ -1,0 +1,15 @@
+:root {
+  --canvas-bg: #090B10;
+  --surface-card: rgba(18, 22, 34, 0.82);
+  --border-card: rgba(255, 255, 255, 0.08);
+  --rim-highlight: rgba(255, 255, 255, 0.08);
+
+  --accent-light-blue: #38BDF8;
+  --accent-light-blue-deep: #0EA5E9;
+  --accent-light-orange: #FB923C;
+  --accent-light-orange-deep: #F97316;
+
+  --accent-mint: #34D399;
+  --accent-rose: #FB7185;
+  --accent-amber: #F59E0B;
+}

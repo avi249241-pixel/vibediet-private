@@ -1,0 +1,43 @@
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: 1,
+  reporter: 'list',
+  use: {
+    baseURL: 'http://127.0.0.1:3000',
+    trace: 'on-first-retry',
+    viewport: { width: 1280, height: 800 },
+  },
+  projects: [
+    {
+      name: 'desktop-chrome',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        viewport: { width: 1280, height: 800 },
+      },
+    },
+    {
+      name: 'mobile-chrome',
+      use: {
+        viewport: { width: 390, height: 844 },
+        channel: 'chrome',
+        isMobile: true,
+        hasTouch: true,
+      },
+    },
+  ],
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://127.0.0.1:3000/health',
+    reuseExistingServer: !process.env.CI,
+    timeout: 30000,
+    env: {
+      VIBEDIET_DATA_DIR: '.tmp-playwright-data',
+    },
+  },
+});

@@ -1,0 +1,244 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-primary: #0ea5e9;
+  --color-brand-blue: #0ea5e9;
+  --color-brand-blue-deep: #0284c7;
+  --color-brand-blue-light: #38bdf8;
+  --color-brand-orange: #ff6b2c;
+  --color-brand-orange-deep: #ea580c;
+  --color-brand-orange-light: #ff9248;
+  --color-brand-mint: #10b981;
+  --color-brand-rose: #f43f5e;
+  --color-brand-yellow: #f59e0b;
+  --color-brand-water: #0ea5e9;
+  --color-apple-canvas: #f5f7fa;
+  --color-apple-ink-primary: #0f172a;
+  --color-apple-ink-secondary: #475569;
+  --color-apple-ink-muted: #94a3b8;
+  --color-void-bg: #090b10;
+  --color-surface-950: #0d111a;
+  --color-surface-900: #121622;
+  --color-surface-800: #182030;
+
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+:root {
+  --color-canvas: #f5f7fa;
+  --color-ink-primary: #0f172a;
+  --color-ink-secondary: #475569;
+  --color-ink-tertiary: #94a3b8;
+  --apple-calories: #ff6b2c;
+  --apple-calories-end: #ff9248;
+  --apple-protein: #0ea5e9;
+  --apple-protein-end: #38bdf8;
+  --apple-carbs: #ff6b2c;
+  --apple-carbs-end: #ff9248;
+  --apple-fat: #f43f5e;
+  --apple-fat-end: #fb7185;
+  --apple-mint: #10b981;
+  --apple-water: #0ea5e9;
+  --apple-card-bg: #ffffff;
+  --apple-card-border: rgba(15, 23, 42, 0.06);
+  --apple-card-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+  --apple-subcard-bg: #f8fafc;
+  --apple-subcard-border: rgba(15, 23, 42, 0.05);
+}
+
+.dark, html.dark {
+  --color-canvas: #070b14;
+  --color-ink-primary: #f8fafc;
+  --color-ink-secondary: #94a3b8;
+  --color-ink-tertiary: #64748b;
+  --apple-card-bg: rgba(18, 22, 34, 0.90);
+  --apple-card-border: rgba(255, 255, 255, 0.08);
+  --apple-card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6);
+  --apple-subcard-bg: rgba(255, 255, 255, 0.04);
+  --apple-subcard-border: rgba(255, 255, 255, 0.06);
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: #f5f7fa;
+  background-image: radial-gradient(ellipse 80% 35% at 50% -10%, rgba(14, 165, 233, 0.08), rgba(255, 107, 44, 0.06), transparent);
+  background-attachment: fixed;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+html.dark body,
+.dark body,
+body.dark {
+  background-color: #070b14;
+  background-image:
+    radial-gradient(ellipse 75% 30% at 50% -5%, rgba(56, 189, 248, 0.10), rgba(251, 146, 60, 0.06), transparent),
+    radial-gradient(circle at 100% 60%, rgba(56, 189, 248, 0.03), transparent 50%);
+  color: #f4f4f5;
+}
+
+h1, h2, h3, h4, .tracking-tight-apple {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.font-sans {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Crisp Apple Health Bento Card (.apple-card, .glass-card, .bento-card) */
+.apple-card, .glass-card, .bento-card {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: 0 12px 40px -12px rgba(15, 23, 42, 0.10);
+  position: relative;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.apple-card:hover, .glass-card:hover, .bento-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 48px -10px rgba(15, 23, 42, 0.14);
+}
+
+.dark .apple-card,
+.dark .glass-card,
+.dark .bento-card {
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.55);
+}
+
+.dark .apple-card:hover,
+.dark .glass-card:hover,
+.dark .bento-card:hover {
+  border-color: rgba(255, 255, 255, 0.20);
+  box-shadow: 0 20px 52px -10px rgba(0, 0, 0, 0.75);
+}
+
+/* Elevated Inner Pill Surfaces (.apple-subcard, .glass-subcard) */
+.apple-subcard, .glass-subcard {
+  background: var(--apple-subcard-bg);
+  border-radius: 16px;
+  border: 1px solid var(--apple-subcard-border);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.dark .apple-subcard,
+.dark .glass-subcard {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.bento-card-interactive {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bento-card-interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 36px -6px rgba(15, 23, 42, 0.08), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+}
+
+.dark .bento-card-interactive:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 16px 44px -8px rgba(0, 0, 0, 0.85);
+}
+
+/* High-Contrast Apple Health Typography Utilities */
+.text-apple-primary {
+  color: var(--color-ink-primary);
+}
+
+.text-apple-secondary {
+  color: var(--color-ink-secondary);
+}
+
+.text-apple-muted {
+  color: var(--color-ink-tertiary);
+}
+
+/* Hero Calorie Centerpiece */
+.apple-hero-cals {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 48px;
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+}
+
+.dark .apple-hero-cals {
+  color: #ffffff;
+  text-shadow: 0 0 24px rgba(255, 107, 44, 0.35);
+}
+
+/* Floating macOS / iOS Frosted Dock */
+.apple-dock {
+  background: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.12), 0 4px 12px -2px rgba(15, 23, 42, 0.06);
+  border-radius: 9999px;
+}
+
+.dark .apple-dock {
+  background: rgba(18, 22, 34, 0.90);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7);
+}
+
+/* Floating Glass Header */
+.apple-nav-header {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.dark .apple-nav-header {
+  background: rgba(9, 11, 16, 0.85);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Light Blue & Sunlit Orange Neon Utilities */
+.neon-glow-blue {
+  text-shadow: 0 0 16px rgba(14, 165, 233, 0.45), 0 0 32px rgba(56, 189, 248, 0.25);
+}
+
+.neon-glow-orange {
+  text-shadow: 0 0 16px rgba(255, 107, 44, 0.45), 0 0 32px rgba(255, 146, 72, 0.25);
+}
+
+.neon-glow-mint {
+  text-shadow: 0 0 16px rgba(16, 185, 129, 0.45);
+}
+
+/* Tabular nums rule for all animated counters */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.perspective-1100 {
+  perspective: 1100px;
+}

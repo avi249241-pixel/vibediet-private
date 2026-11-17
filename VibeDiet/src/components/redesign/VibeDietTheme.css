@@ -1,0 +1,276 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap");
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --canvas: #f5f7fa;
+  --card: rgba(255, 255, 255, 0.65);
+  --card-subtle: rgba(248, 250, 252, 0.75);
+  --input: #ffffff;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+
+  --border: rgba(15, 23, 42, 0.06);
+  --border-strong: rgba(15, 23, 42, 0.11);
+  --hover: rgba(15, 23, 42, 0.045);
+  --active: rgba(15, 23, 42, 0.075);
+
+  --nav-bg: rgba(255, 255, 255, 0.76);
+  --dock-bg: rgba(255, 255, 255, 0.84);
+  --overlay: rgba(15, 23, 42, 0.22);
+
+  --card-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05);
+  --card-shadow-hover: 0 18px 45px -12px rgba(15, 23, 42, 0.12);
+  --dock-shadow:
+    0 20px 50px -12px rgba(15, 23, 42, 0.2),
+    0 2px 8px rgba(15, 23, 42, 0.05);
+
+  --tangerine: #ff6b2c;
+  --tangerine-light: #ff9248;
+  --tangerine-text: #d94e13;
+  --sky: #0ea5e9;
+  --sky-light: #38bdf8;
+  --emerald: #10b981;
+  --emerald-text: #047857;
+  --rose: #f43f5e;
+  --amber: #f59e0b;
+
+  --ambient: radial-gradient(
+    ellipse 80% 35% at 50% -10%,
+    rgba(14, 165, 233, 0.08),
+    rgba(255, 107, 44, 0.06),
+    transparent
+  );
+
+  --font-display: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-numeric: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+[data-theme="dark"],
+.dark,
+html.dark {
+  color-scheme: dark;
+
+  --canvas: #070b14;
+  --card: rgba(15, 23, 42, 0.55);
+  --card-subtle: rgba(24, 36, 55, 0.65);
+  --input: #101a2a;
+
+  --text-primary: #f4f7fb;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+
+  --border: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.13);
+  --hover: rgba(255, 255, 255, 0.055);
+  --active: rgba(255, 255, 255, 0.09);
+
+  --nav-bg: rgba(11, 18, 32, 0.78);
+  --dock-bg: rgba(19, 30, 47, 0.88);
+  --overlay: rgba(0, 0, 0, 0.48);
+
+  --card-shadow: 0 14px 40px -12px rgba(0, 0, 0, 0.35);
+  --card-shadow-hover: 0 20px 50px -14px rgba(0, 0, 0, 0.5);
+  --dock-shadow:
+    0 22px 55px -12px rgba(0, 0, 0, 0.58),
+    0 0 0 1px rgba(255, 255, 255, 0.035);
+
+  --tangerine-text: #ffab84;
+  --emerald-text: #6ee7b7;
+
+  --ambient: radial-gradient(
+    ellipse 80% 38% at 50% -10%,
+    rgba(14, 165, 233, 0.12),
+    rgba(255, 107, 44, 0.075),
+    transparent
+  );
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  min-height: 40px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+  background-clip: padding-box;
+}
+
+html {
+  min-width: 320px;
+  background: var(--canvas);
+  scroll-behavior: smooth;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--canvas);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition:
+    background-color 240ms ease,
+    color 240ms ease;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+select:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: rgba(14, 165, 233, 0.2);
+  color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 3px solid rgba(14, 165, 233, 0.42);
+  outline-offset: 3px;
+}
+
+.vibediet-canvas {
+  min-height: 100vh;
+  background-color: var(--canvas);
+  background-image: var(--ambient);
+  background-repeat: no-repeat;
+  background-position: top center;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.numeric,
+.tabular-nums {
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings:
+    "tnum" 1,
+    "lnum" 1;
+}
+
+.apple-card {
+  border: 1px solid var(--border);
+  border-radius: 26px;
+  background: var(--card);
+  box-shadow: var(--card-shadow);
+  transition:
+    background-color 240ms ease,
+    border-color 240ms ease,
+    box-shadow 240ms ease;
+}
+
+.apple-subcard {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--card-subtle);
+  transition:
+    background-color 240ms ease,
+    border-color 240ms ease;
+}
+
+.glass-panel {
+  border-color: var(--border);
+  background: var(--nav-bg);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+}
+
+.glass-dock {
+  border: 1px solid var(--border-strong);
+  background: var(--dock-bg);
+  box-shadow: var(--dock-shadow);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+}
+
+.satin-input {
+  border: 1px solid var(--border-strong);
+  background: var(--input);
+  color: var(--text-primary);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 240ms ease;
+}
+
+.satin-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.satin-input:hover {
+  border-color: rgba(14, 165, 233, 0.28);
+}
+
+.satin-input:focus {
+  border-color: rgba(14, 165, 233, 0.65);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
+  outline: none;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

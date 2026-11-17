@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Strict user isolation: users can only read/write their own subcollections
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Days and meals locked to authenticated owner
+      match /days/{date} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false; // Server-only transactional mutations
+      }
+      match /meals/{mealId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false; // Server-only transactional mutations
+      }
+      match /drafts/{draftId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /weights/{weightId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+      match /repeatMeals/{repeatId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+    }
+    
+    // Support tickets: clients can only create, never read or browse
+    match /supportTickets/{ticketId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
+    }
+  }
+}

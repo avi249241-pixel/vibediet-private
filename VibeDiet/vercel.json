@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/v1/(.*)", "destination": "/api" },
+    { "source": "/health", "destination": "/api" },
+    { "source": "/ready", "destination": "/api" },
+    { "source": "/version", "destination": "/api" },
+    { "source": "/offline", "destination": "/VibeDiet-App.html" },
+    { "source": "/standalone", "destination": "/VibeDiet-App.html" },
+    { "source": "/VibeDiet-App.html", "destination": "/VibeDiet-App.html" },
+    { "source": "/admin", "destination": "/VibeDiet-Admin.html" },
+    { "source": "/admin.html", "destination": "/VibeDiet-Admin.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
