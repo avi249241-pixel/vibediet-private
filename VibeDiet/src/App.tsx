@@ -171,8 +171,15 @@ const VibeDietShell: React.FC = () => {
     <div className="min-h-screen bg-[#F5F7FA] text-slate-900 dark:bg-[#070B14] dark:text-slate-100 flex flex-col font-sans transition-colors duration-200 relative overflow-x-hidden">
       {/* Ambient Dual-Tone Fixed Radial Glow Layer */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none" aria-hidden="true">
-        <div className="absolute -top-[15%] -left-[10%] w-[55vw] h-[55vw] max-w-[700px] max-h-[700px] rounded-full blur-[110px] bg-[#38BDF8] opacity-14 dark:opacity-18 transition-opacity duration-300" />
-        <div className="absolute -top-[15%] -right-[10%] w-[55vw] h-[55vw] max-w-[700px] max-h-[700px] rounded-full blur-[110px] bg-[#FB923C] opacity-12 dark:opacity-16 transition-opacity duration-300" />
+        <div
+          className="absolute -top-[14%] -left-[10%] w-[58vw] h-[58vw] max-w-[740px] max-h-[740px] rounded-full blur-[110px] bg-[#38BDF8] opacity-[0.14] dark:opacity-[0.18] transition-opacity duration-300"
+        />
+        <div
+          className="absolute -top-[14%] -right-[10%] w-[58vw] h-[58vw] max-w-[740px] max-h-[740px] rounded-full blur-[110px] bg-[#FB923C] opacity-[0.12] dark:opacity-[0.16] transition-opacity duration-300"
+        />
+        <div
+          className="absolute -bottom-[22%] left-[25%] w-[50vw] h-[45vw] max-w-[680px] max-h-[540px] rounded-full blur-[120px] bg-[#38BDF8] opacity-[0.07] dark:opacity-[0.10] transition-opacity duration-300"
+        />
       </div>
 
       <div className="relative z-10 flex flex-col min-h-screen">
@@ -210,7 +217,7 @@ const VibeDietShell: React.FC = () => {
         <PwaInstallBanner className="fixed top-20 right-4 z-40 max-w-sm" />
 
         {/* Clean Subtle Footer for Consumer App with Discreet System Triggers */}
-        <footer className="mt-auto border-t border-slate-900/[0.06] dark:border-white/[0.06] bg-white/80 dark:bg-[#0E0E11]/80 backdrop-blur-md py-6 px-6 pb-40 pr-36 text-xs text-slate-500 dark:text-zinc-500 transition-colors">
+        <footer className="mt-auto border-t border-slate-900/[0.06] dark:border-white/[0.08] bg-white/65 dark:bg-slate-900/55 backdrop-blur-2xl pt-6 pl-6 pb-40 pr-36 text-xs text-slate-500 dark:text-zinc-400 transition-colors">
           <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-slate-800 dark:text-zinc-300">VibeDiet</span>

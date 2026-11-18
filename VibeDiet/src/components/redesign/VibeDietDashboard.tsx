@@ -57,6 +57,7 @@ export interface RepeatMealItem {
 
 export interface VibeDietDashboardProps {
   selectedDate?: string;
+  maxDate?: string;
   onSelectDate?: (date: string) => void;
   dateHeading?: string;
   dateLabel: string;
@@ -282,7 +283,7 @@ function MealCard({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 26, delay: index * 0.035 }}
-      className={`apple-card min-w-0 p-4 sm:p-5 ${open ? "relative z-30" : "relative z-0"}`}
+      className={`apple-card bg-white/65 dark:bg-slate-900/55 backdrop-blur-2xl border border-white/75 dark:border-white/12 rounded-[28px] shadow-[0_12px_40px_-12px_rgba(15,23,42,0.10)] dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)] hover:-translate-y-0.5 transition-all duration-200 min-w-0 p-4 sm:p-5 ${open ? "relative z-30" : "relative z-0"}`}
       aria-label={mealMeta[slot].label}
     >
       <div className="flex items-center gap-3">
@@ -415,6 +416,7 @@ function MealCard({
 
 export default function VibeDietDashboard({
   selectedDate,
+  maxDate,
   onSelectDate,
   dateHeading,
   dateLabel,
@@ -488,6 +490,7 @@ export default function VibeDietDashboard({
                     type="date"
                     data-testid="date-picker-input"
                     value={selectedDate}
+                    max={maxDate}
                     onChange={(e) => onSelectDate(e.target.value)}
                     aria-label="Select diary date"
                     className="h-8 bg-transparent text-[11px] font-mono px-2 text-[var(--text-primary)] border-0 focus:outline-none cursor-pointer"
@@ -498,8 +501,9 @@ export default function VibeDietDashboard({
               <button
                 type="button"
                 onClick={onNextDay}
+                disabled={Boolean(maxDate && selectedDate && selectedDate >= maxDate)}
                 data-testid="next-day-btn"
-                className="grid h-8 w-8 place-items-center rounded-[9px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--text-primary)] cursor-pointer"
+                className="grid h-8 w-8 place-items-center rounded-[9px] text-[var(--text-secondary)] transition-colors hover:bg-[var(--hover)] hover:text-[var(--text-primary)] disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
                 aria-label="Next day"
               >
                 <ArrowIcon direction="right" />
@@ -589,21 +593,21 @@ export default function VibeDietDashboard({
         {/* Bento Grid */}
         <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,42fr)_minmax(0,58fr)]">
           {/* Left Column: Energy Ring + Hydration + Smart Solver */}
-          <div className="min-w-0 space-y-4">
+          <div className="min-w-0 space-y-5">
             <motion.section
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ type: "spring", stiffness: 240, damping: 25 }}
-              className="apple-card p-5 sm:p-6"
+              className="apple-card bg-white/65 dark:bg-slate-900/55 backdrop-blur-2xl border border-white/75 dark:border-white/12 rounded-[28px] shadow-[0_12px_40px_-12px_rgba(15,23,42,0.10)] dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)] p-5 sm:p-6"
               aria-label="Calorie and macronutrient summary"
             >
               <div className="flex flex-col items-center">
                 <div
-                  className="relative h-[200px] w-[200px]"
+                  className="relative h-[206px] w-[206px]"
                   role="img"
                   aria-label={`${whole(summary.caloriesEaten)} of ${whole(summary.caloriesTarget)} calories consumed`}
                 >
-                  <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90">
+                  <svg viewBox="0 0 200 200" className="h-full w-full -rotate-90 overflow-visible">
                     <defs>
                       <linearGradient id={ringId} x1="0" y1="0" x2="1" y2="1">
                         <stop offset="0%" stopColor="#FB923C" />
@@ -616,7 +620,7 @@ export default function VibeDietDashboard({
                       r={radius}
                       fill="none"
                       stroke="var(--active)"
-                      strokeWidth="16"
+                      strokeWidth="18"
                     />
                     <motion.circle
                       cx="100"
@@ -624,7 +628,7 @@ export default function VibeDietDashboard({
                       r={radius}
                       fill="none"
                       stroke={`url(#${ringId})`}
-                      strokeWidth="16"
+                      strokeWidth="18"
                       strokeLinecap="round"
                       strokeDasharray={circumference}
                       initial={{ strokeDashoffset: circumference }}
@@ -635,7 +639,7 @@ export default function VibeDietDashboard({
                   </svg>
 
                   <div className="absolute inset-0 flex flex-col items-center justify-center pt-1">
-                    <span className="numeric text-4xl sm:text-[48px] font-bold tabular-nums leading-none tracking-tight text-[var(--text-primary)]">
+                    <span className="numeric text-4xl font-bold tabular-nums leading-none tracking-tight text-[var(--text-primary)]">
                       {whole(Math.abs(remaining))}
                     </span>
                     <span className="mt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-secondary)]">
@@ -699,7 +703,7 @@ export default function VibeDietDashboard({
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.06 }}
-              className="apple-card flex items-center gap-3 p-4 sm:gap-4 sm:px-5"
+              className="apple-card bg-white/65 dark:bg-slate-900/55 backdrop-blur-2xl border border-white/75 dark:border-white/12 rounded-[28px] shadow-[0_12px_40px_-12px_rgba(15,23,42,0.10)] dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)] hover:-translate-y-0.5 transition-all duration-200 flex items-center gap-3 p-4 sm:gap-4 sm:px-5"
               aria-label="Hydration"
             >
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[15px] bg-[rgba(14,165,233,0.1)]">
@@ -745,7 +749,7 @@ export default function VibeDietDashboard({
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="apple-card overflow-hidden"
+              className="apple-card bg-white/65 dark:bg-slate-900/55 backdrop-blur-2xl border border-white/75 dark:border-white/12 rounded-[28px] shadow-[0_12px_40px_-12px_rgba(15,23,42,0.10)] dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)] hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
             >
               <button
                 type="button"
@@ -838,14 +842,14 @@ export default function VibeDietDashboard({
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => onTriggerAction("photo")}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-white/10 sm:gap-2 sm:px-4 cursor-pointer"
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-full bg-gradient-to-r from-[#FB923C] to-[#F97316] px-3.5 py-2 text-xs font-extrabold text-white shadow-[0_0_16px_rgba(251,146,60,0.45)] transition-all hover:brightness-110 sm:gap-2 sm:px-4 cursor-pointer"
             >
               <span className="text-base" aria-hidden="true">📷</span>
               AI Meal Scan
             </motion.button>
           </div>
 
-          <div className="mx-0.5 h-5 w-px bg-white/20" />
+          <div className="mx-0.5 h-5 w-px bg-white/15" />
 
           {/* Barcode Action */}
           <div className="flex items-center">
@@ -855,14 +859,14 @@ export default function VibeDietDashboard({
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => onTriggerAction("barcode")}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-white/10 sm:gap-2 sm:px-4 cursor-pointer"
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/15 hover:text-white sm:gap-2 sm:px-4 cursor-pointer"
             >
               <span className="text-base" aria-hidden="true">🏷️</span>
               Scan Barcode
             </motion.button>
           </div>
 
-          <div className="mx-0.5 h-5 w-px bg-white/20" />
+          <div className="mx-0.5 h-5 w-px bg-white/15" />
 
           {/* Search Foods Action */}
           <div className="flex items-center">
@@ -871,7 +875,7 @@ export default function VibeDietDashboard({
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => onTriggerAction("search")}
-              className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-white/10 sm:gap-2 sm:px-4 cursor-pointer"
+              className="flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold text-white/90 transition-colors hover:bg-white/15 hover:text-white sm:gap-2 sm:px-4 cursor-pointer"
             >
               <span className="text-base" aria-hidden="true">🔍</span>
               Search Foods

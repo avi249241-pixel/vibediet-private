@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 export interface Config {
   path?: string | string[];
   preferStatic?: boolean;
@@ -16,17 +18,50 @@ interface KeySlot {
   errorsCount?: number;
 }
 
-// In-memory runtime state for serverless execution
-let runtimeSlots: KeySlot[] = [
-  { slotId: 'key-slot-1', maskedKey: 'AQ.Ab...rP9g', status: 'healthy', latencyMs: 312, requestsCount: 14, errorsCount: 0 },
-  { slotId: 'key-slot-2', maskedKey: 'AQ.Ab...kiPg', status: 'healthy', latencyMs: 285, requestsCount: 12, errorsCount: 0 },
-  { slotId: 'key-slot-3', maskedKey: 'AQ.Ab...q8ow', status: 'healthy', latencyMs: 340, requestsCount: 11, errorsCount: 0 },
-  { slotId: 'key-slot-4', maskedKey: 'AQ.Ab...DhAg', status: 'healthy', latencyMs: 298, requestsCount: 9, errorsCount: 0 },
-  { slotId: 'key-slot-5', maskedKey: 'AQ.Ab...dZwQ', status: 'healthy', latencyMs: 320, requestsCount: 8, errorsCount: 0 },
-  { slotId: 'key-slot-6', maskedKey: 'AQ.Ab...hvOg', status: 'healthy', latencyMs: 310, requestsCount: 7, errorsCount: 0 },
-  { slotId: 'key-slot-7', maskedKey: 'AQ.Ab...pLYg', status: 'healthy', latencyMs: 305, requestsCount: 5, errorsCount: 0 },
-  { slotId: 'key-slot-8', maskedKey: 'AQ.Ab...W8hg', status: 'healthy', latencyMs: 290, requestsCount: 4, errorsCount: 0 },
-];
+function timingSafeStringEqual(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function verifyAdminJwt(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    // 1. Signed VibeDiet HMAC-SHA256 session token (payload.sig)
+    if (parts.length === 2) {
+      const secret = process.env.SESSION_SECRET || '';
+      if (!secret) return false;
+      const [payloadB64, sig] = parts;
+      const expected = crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
+      if (!timingSafeStringEqual(sig, expected)) return false;
+      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
+      if (typeof payload.exp === 'number' && Date.now() > payload.exp) return false;
+      return Boolean(payload.isAdmin);
+    }
+    // 2. Supabase HS256 JWT (header.payload.sig) with app_metadata.role === 'admin'
+    if (parts.length === 3) {
+      const jwtSecret = process.env.SUPABASE_JWT_SECRET || '';
+      if (!jwtSecret) return false;
+      const [headerB64, payloadB64, sig] = parts;
+      const expected = crypto
+        .createHmac('sha256', jwtSecret)
+        .update(`${headerB64}.${payloadB64}`)
+        .digest('base64url');
+      if (!timingSafeStringEqual(sig, expected)) return false;
+      const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
+      if (typeof payload.exp === 'number' && Date.now() / 1000 > payload.exp) return false;
+      return payload?.app_metadata?.role === 'admin' || payload?.role === 'service_role';
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// In-memory runtime state for serverless execution (populated from vibe_key_pool DB or env, zero hardcoded secrets)
+let runtimeSlots: KeySlot[] = [];
 
 export default async function handler(req: Request, _context: Context): Promise<Response> {
   const url = new URL(req.url);
@@ -44,22 +79,19 @@ export default async function handler(req: Request, _context: Context): Promise<
     return new Response(null, { status: 204, headers });
   }
 
-  // Auth Gate: Require valid Authorization: Bearer <token>
+  // Zero-Trust Auth Gate: Timing-safe ADMIN_ACCESS_TOKEN or cryptographically verified admin JWT
   const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
-  const expectedToken = process.env.ADMIN_ACCESS_TOKEN || 'vibediet_admin_secret_2026';
+  const expectedToken = (process.env.ADMIN_ACCESS_TOKEN || '').trim();
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
 
   const isValidAdmin = Boolean(
     token &&
-    (token === expectedToken ||
-     token === 'admin-token' ||
-     token === 'vibediet-admin-2026' ||
-     token.startsWith('AQ.') ||
-     token.startsWith('AIza'))
+      ((expectedToken.length >= 16 && timingSafeStringEqual(token, expectedToken)) ||
+        verifyAdminJwt(token))
   );
 
   if (!isValidAdmin) {
-    return new Response(JSON.stringify({ error: 'Unauthorized: Admin authentication required' }), {
+    return new Response(JSON.stringify({ error: 'Unauthorized: Verified administrator credentials required' }), {
       status: 401,
       headers,
     });
@@ -256,24 +288,41 @@ export default async function handler(req: Request, _context: Context): Promise<
     return new Response(JSON.stringify({ success: true, slotId }), { status: 200, headers });
   }
 
-  // 4. POST /v1/admin/ping & POST /v1/admin/keys/test (Ping live swarm & persist telemetry)
+  // 4. POST /v1/admin/ping & POST /v1/admin/keys/test (Honest live swarm ping; 503 if GEMINI_API_KEY missing)
   if (method === 'POST' && (path.endsWith('/ping') || path.endsWith('/keys/test'))) {
+    const activeKey = (process.env.GEMINI_API_KEY || '').trim();
+    if (!activeKey) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          reachable: false,
+          error: 'GEMINI_API_KEY is not configured in Netlify environment variables',
+          code: 'GEMINI_KEY_MISSING',
+        }),
+        { status: 503, headers }
+      );
+    }
+
     const startTime = Date.now();
     let measuredLatency = 0;
-    let pingSuccess = true;
-    const activeKey = process.env.GEMINI_API_KEY || '';
+    let pingSuccess = false;
 
     try {
-      if (activeKey) {
-        const pingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash?key=${activeKey}`;
-        const resp = await fetch(pingUrl, { method: 'GET', signal: AbortSignal.timeout(3500) });
-        measuredLatency = Date.now() - startTime;
-        pingSuccess = resp.ok;
-      } else {
-        measuredLatency = Math.floor(Math.random() * 35) + 165;
-      }
-    } catch {
-      measuredLatency = Date.now() - startTime || 215;
+      const pingUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash?key=${encodeURIComponent(activeKey)}`;
+      const resp = await fetch(pingUrl, { method: 'GET', signal: AbortSignal.timeout(4000) });
+      measuredLatency = Math.max(1, Date.now() - startTime);
+      pingSuccess = resp.ok;
+    } catch (err: any) {
+      measuredLatency = Math.max(1, Date.now() - startTime);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          reachable: false,
+          latencyMs: measuredLatency,
+          error: err?.message || 'Gemini upstream ping failed',
+        }),
+        { status: 502, headers }
+      );
     }
 
     if (runtimeSlots.length > 0) {
@@ -431,6 +480,10 @@ export default async function handler(req: Request, _context: Context): Promise<
           SET payload = jsonb_set(payload, '{status}', '"resolved"') 
           WHERE id = ${ticketId}
         `.execute();
+        await db.sql`
+          INSERT INTO vibe_audit_logs (event_type, actor_uid, client_ip, details, created_at)
+          VALUES ('support_ticket_resolved', 'admin-local-uid', 'netlify-edge', ${JSON.stringify({ ticketId })}, NOW())
+        `.execute().catch(() => {});
       } catch {}
     }
     return new Response(JSON.stringify({ success: true, ticketId, status: 'resolved' }), { status: 200, headers });

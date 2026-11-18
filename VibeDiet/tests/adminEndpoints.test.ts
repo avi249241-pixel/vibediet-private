@@ -1,12 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../server.js';
+import { createSignedSessionToken } from '../src/middleware/auth.js';
 import { mockDb } from '../src/lib/mockFirestore.js';
 import { keyPoolRouter } from '../src/services/keyPoolRouter.js';
 
 describe('Admin Cockpit Endpoints & Support Ticket Resolution', () => {
   const app = createApp();
-  const adminAuth = { Authorization: 'Bearer admin-token' };
+  const signedAdminJwt = createSignedSessionToken({
+    uid: 'admin-verified-uid',
+    email: 'admin@vibediet.app',
+    isAdmin: true,
+  });
+  const adminAuth = { Authorization: `Bearer ${signedAdminJwt}` };
 
   beforeEach(() => {
     mockDb.resetForTests();

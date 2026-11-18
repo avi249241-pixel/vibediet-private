@@ -1,5 +1,4 @@
 import { createRequire } from 'node:module';
-import type admin from 'firebase-admin';
 import { mockDb } from './mockFirestore.js';
 import {
   DaySummary,
@@ -31,10 +30,11 @@ import {
   TenantFileStore,
 } from '../persistence/postgresRepository.js';
 import { PortionCalibration, normalizeFoodKey } from '../services/portionMemory.js';
+import { dateKey } from '../shared/physics/atwater.js';
 
 const requireModule = createRequire(import.meta.url);
 
-let firestoreInstance: admin.firestore.Firestore | null = null;
+let firestoreInstance: any = null;
 let isRealFirestoreActive = false;
 let initAttempted = false;
 
@@ -42,10 +42,9 @@ let initAttempted = false;
 getPostgresPool().catch(() => {});
 
 /**
- * Initializes Firebase Admin SDK using standardized environment variables.
- * Gracefully falls back to local MockFirestore/Postgres if not present.
+ * Initializes optional Cloud Firestore if configured; falls back cleanly to PostgreSQL/local store.
  */
-export function getFirestoreDb(): admin.firestore.Firestore | null {
+export function getFirestoreDb(): any {
   if (initAttempted) return firestoreInstance;
   initAttempted = true;
 
@@ -209,11 +208,11 @@ export const dataStore = {
         const snap = await db.collectionGroup('drafts').get();
         if (!snap.empty) {
           return snap.docs
-            .map((d) => {
+            .map((d: any) => {
               const res = FirestorePhotoDraftSchema.safeParse(d.data());
               return res.success ? (res.data as PhotoDraft) : null;
             })
-            .filter((d): d is PhotoDraft => d !== null);
+            .filter((d: PhotoDraft | null): d is PhotoDraft => d !== null);
         }
       } catch (err) {
         console.warn(`[dataStore.getAllDraftsAcrossUsers] Firestore query failed:`, err);
@@ -305,11 +304,11 @@ export const dataStore = {
           .get();
         if (!snap.empty) {
           return snap.docs
-            .map((d) => {
+            .map((d: any) => {
               const res = FirestoreMealSchema.safeParse(d.data());
               return res.success ? (res.data as MealEntry) : null;
             })
-            .filter((m): m is MealEntry => m !== null);
+            .filter((m: MealEntry | null): m is MealEntry => m !== null);
         }
       } catch (err) {
         console.warn(`[dataStore.listMealsForDate] Firestore query failed:`, err);
@@ -320,14 +319,10 @@ export const dataStore = {
 
   // DAYS: /users/{uid}/days/{date}
   async getDaySummary(uid: string, date: string): Promise<DaySummary> {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = dateKey();
     if (isUsingPostgres()) {
       const pgDay = await postgresRepository.getDaySummary(uid, date);
       if (pgDay) {
-        if (date !== todayStr && pgDay.waterMl === 1750 && (!pgDay.meals || pgDay.meals.length === 0)) {
-          pgDay.waterMl = 0;
-          await postgresRepository.saveDaySummary(uid, date, pgDay).catch(() => {});
-        }
         return pgDay;
       }
     }
@@ -363,7 +358,7 @@ export const dataStore = {
       totalFiber: Number(dayMeals.reduce((acc, m) => acc + m.totalFiber, 0).toFixed(1)),
       totalSugar: Number(dayMeals.reduce((acc, m) => acc + m.totalSugar, 0).toFixed(1)),
       totalSodium: Math.round(dayMeals.reduce((acc, m) => acc + m.totalSodium, 0)),
-      waterMl: (date === new Date().toISOString().split('T')[0] ? (existingBucketDay?.waterMl ?? 1750) : (existingBucketDay?.waterMl ?? 0)),
+      waterMl: existingBucketDay?.waterMl ?? 0,
       meals: dayMeals,
       updatedAt: new Date().toISOString(),
     };
@@ -447,11 +442,11 @@ export const dataStore = {
           .get();
         if (!snap.empty) {
           return snap.docs
-            .map((d) => {
+            .map((d: any) => {
               const res = FirestoreWeightLogSchema.safeParse(d.data());
               return res.success ? (res.data as WeightLogEntry) : null;
             })
-            .filter((w): w is WeightLogEntry => w !== null);
+            .filter((w: WeightLogEntry | null): w is WeightLogEntry => w !== null);
         }
       } catch (err) {
         console.warn(`[dataStore.getWeights] Firestore query failed:`, err);
@@ -506,11 +501,11 @@ export const dataStore = {
         const snap = await db.collection('users').doc(uid).collection('repeatMeals').get();
         if (!snap.empty) {
           return snap.docs
-            .map((d) => {
+            .map((d: any) => {
               const res = FirestoreMealSchema.safeParse(d.data());
               return res.success ? (res.data as MealEntry) : null;
             })
-            .filter((m): m is MealEntry => m !== null);
+            .filter((m: MealEntry | null): m is MealEntry => m !== null);
         }
       } catch (err) {
         console.warn(`[dataStore.getRepeatMeals] Firestore query failed:`, err);
@@ -637,11 +632,11 @@ export const dataStore = {
           .get();
         if (!snap.empty) {
           return snap.docs
-            .map((d) => {
+            .map((d: any) => {
               const res = FirestoreSupportTicketSchema.safeParse(d.data());
               return res.success ? (res.data as SupportTicket) : null;
             })
-            .filter((t): t is SupportTicket => t !== null);
+            .filter((t: SupportTicket | null): t is SupportTicket => t !== null);
         }
       } catch (err) {
         console.warn(`[dataStore.listSupportTickets] Firestore query failed:`, err);
@@ -743,19 +738,19 @@ export const dataStore = {
       try {
         const daysSnap = await db.collection('users').doc(uid).collection('days').get();
         days = daysSnap.docs
-          .map((d) => {
+          .map((d: any) => {
             const res = FirestoreDaySummarySchema.safeParse(d.data());
             return res.success ? (res.data as DaySummary) : null;
           })
-          .filter((d): d is DaySummary => d !== null);
+          .filter((d: DaySummary | null): d is DaySummary => d !== null);
 
         const mealsSnap = await db.collection('users').doc(uid).collection('meals').get();
         meals = mealsSnap.docs
-          .map((d) => {
+          .map((d: any) => {
             const res = FirestoreMealSchema.safeParse(d.data());
             return res.success ? (res.data as MealEntry) : null;
           })
-          .filter((m): m is MealEntry => m !== null);
+          .filter((m: MealEntry | null): m is MealEntry => m !== null);
       } catch (err) {
         console.warn(`[dataStore.exportUserData] Firestore read failed:`, err);
       }

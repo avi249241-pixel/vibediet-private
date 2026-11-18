@@ -85,6 +85,43 @@ function parseCookies(header?: string): Record<string, string> {
   return cookies;
 }
 
+function timingSafeMatch(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+/**
+ * Verifies a Supabase HS256 JWT (if SUPABASE_JWT_SECRET is configured)
+ */
+function verifySupabaseJwt(
+  token: string
+): { uid: string; email?: string; isAdmin: boolean } | null {
+  try {
+    const jwtSecret = process.env.SUPABASE_JWT_SECRET || '';
+    if (!jwtSecret) return null;
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [headerB64, payloadB64, signature] = parts;
+    const expectedSig = crypto
+      .createHmac('sha256', jwtSecret)
+      .update(`${headerB64}.${payloadB64}`)
+      .digest('base64url');
+    if (!timingSafeMatch(signature, expectedSig)) return null;
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf-8'));
+    if (typeof payload.exp === 'number' && Date.now() / 1000 > payload.exp) return null;
+    return {
+      uid: payload.sub || payload.user_id || 'supabase-user',
+      email: payload.email,
+      isAdmin: payload?.app_metadata?.role === 'admin' || payload?.role === 'service_role',
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function requireAuth(
   req: AuthenticatedRequest,
   res: Response,
@@ -122,9 +159,21 @@ export async function requireAuth(
     return;
   }
 
-  // 3. Check if Bearer token is a signed session token
+  // 3. Check timing-safe ADMIN_ACCESS_TOKEN
+  const configuredAdminToken = (process.env.ADMIN_ACCESS_TOKEN || '').trim();
+  if (configuredAdminToken.length >= 16 && timingSafeMatch(token, configuredAdminToken)) {
+    req.user = {
+      uid: 'admin-verified-uid',
+      email: 'admin@vibediet.app',
+      isAdmin: true,
+    };
+    next();
+    return;
+  }
+
+  // 4. Check cryptographically signed Session Token or Supabase JWT
   if (token.includes('.')) {
-    const verifiedSession = verifySignedSessionToken(token);
+    const verifiedSession = verifySignedSessionToken(token) || verifySupabaseJwt(token);
     if (verifiedSession) {
       req.user = verifiedSession;
       next();
@@ -134,57 +183,24 @@ export async function requireAuth(
 
   const adminUids = env.ADMIN_UIDS.split(',').map((s) => s.trim());
 
-  // 4. Production Mode: Strict Cryptographic Firebase ID Token Verification
+  // 5. Production Mode: Reject all unsigned / local-dev tokens
   if (env.NODE_ENV === 'production') {
-    if (
-      token.startsWith('uid:') ||
-      token === 'admin-token' ||
-      token === 'guest-non-admin-token' ||
-      token === 'local-dev-user' ||
-      token === 'local-dev-token'
-    ) {
+    if (token.startsWith('uid:') || token === 'local-dev-user' || token === 'local-dev-token') {
       res.status(401).json({
-        error: 'Unauthorized: Mock tokens are strictly forbidden in production',
+        error: 'Unauthorized: Unsigned tokens are strictly forbidden in production',
         code: 'AUTH_MOCK_TOKEN_FORBIDDEN',
       });
       return;
     }
 
-    try {
-      let adminModule: any = null;
-      if (env.FIREBASE_PROJECT_ID || env.FIREBASE_SERVICE_ACCOUNT_KEY || env.GOOGLE_APPLICATION_CREDENTIALS) {
-        try {
-          adminModule = (await import('firebase-admin')).default;
-        } catch {}
-      }
-
-      if (adminModule && adminModule.apps.length > 0) {
-        const decoded = await adminModule.auth().verifyIdToken(token);
-        const isAdmin = decoded.admin === true || adminUids.includes(decoded.uid);
-        req.user = {
-          uid: decoded.uid,
-          email: decoded.email || `${decoded.uid}@vibediet.app`,
-          isAdmin,
-        };
-        next();
-        return;
-      } else {
-        res.status(401).json({
-          error: 'Unauthorized: Firebase Admin authentication not initialized',
-          code: 'AUTH_UNINITIALIZED',
-        });
-        return;
-      }
-    } catch {
-      res.status(401).json({
-        error: 'Unauthorized: Cryptographic JWT verification failed',
-        code: 'AUTH_INVALID_TOKEN',
-      });
-      return;
-    }
+    res.status(401).json({
+      error: 'Unauthorized: Cryptographic JWT or ADMIN_ACCESS_TOKEN verification failed',
+      code: 'AUTH_INVALID_TOKEN',
+    });
+    return;
   }
 
-  // 5. Non-Production Mode: Restrict Mock Tokens to Loopback Dev / Test & Authorized Tunnels
+  // 6. Non-Production Mode: Loopback dev/test user isolation via uid:<id> (never grants admin via magic strings)
   const clientIp = req.ip || req.socket.remoteAddress || '';
   const isTunnel =
     Boolean(req.hostname && req.hostname.endsWith('.trycloudflare.com')) ||
@@ -202,37 +218,33 @@ export async function requireAuth(
     req.hostname === 'localhost' ||
     isTunnel;
 
-  if (!isLoopbackOrTest && (token.startsWith('uid:') || token.includes('token') || token === 'local-dev-user')) {
+  if (!isLoopbackOrTest) {
     res.status(403).json({
-      error: 'Forbidden: Mock authentication shortcuts are restricted to loopback (127.0.0.1)',
+      error: 'Forbidden: Loopback-only development tokens cannot be used remotely',
       code: 'AUTH_LOOPBACK_ONLY',
     });
     return;
   }
 
-  let uid = 'demo-user-uid';
   if (token.startsWith('uid:')) {
-    uid = token.slice(4);
-  } else if (token === 'admin-token') {
-    uid = 'admin-local-uid';
-  } else if (token === 'guest-non-admin-token') {
-    uid = 'regular-guest-uid';
-  } else if (token === 'local-dev-user' || token === 'local-dev-token') {
-    uid = 'local-dev-user';
+    const uid = token.slice(4).trim();
+    if (!uid) {
+      res.status(401).json({ error: 'Unauthorized: Empty UID token', code: 'AUTH_INVALID_TOKEN' });
+      return;
+    }
+    req.user = {
+      uid,
+      email: `${uid}@vibediet.app`,
+      isAdmin: !isTunnel && adminUids.includes(uid),
+    };
+    next();
+    return;
   }
 
-  // Admin access is air-gapped strictly to local loopback (never granted over public tunnels)
-  const isAdmin =
-    !isTunnel &&
-    (token === 'admin-token' || adminUids.includes(uid));
-
-  req.user = {
-    uid,
-    email: `${uid}@vibediet.app`,
-    isAdmin,
-  };
-
-  next();
+  res.status(401).json({
+    error: 'Unauthorized: Provide a signed JWT, ADMIN_ACCESS_TOKEN, or loopback uid:<id>',
+    code: 'AUTH_INVALID_TOKEN',
+  });
 }
 
 export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction): void {

@@ -1,28 +1,44 @@
-# 🧭 VibeDiet System Hub
+# 🧭 VibeDiet Connected Neural Brain
 
-Welcome to the **VibeDiet 2.0** second brain. This in-repo memory system maps out the application architecture, runtime workflows, and active context so agents never need to perform broad repository scans.
+#hub
 
----
-
-## ⚡ Quick Navigation
-
-- 📐 **[[Architecture]]**: Complete architectural blueprint, tech stack, data pipelines, and core source file map (under 120 lines).
-- 🎯 **[[Active-Context]]**: Current task focus, active files to read/edit, and recent implementation changes.
+Welcome to the **VibeDiet 2.1** connected Obsidian knowledge graph. Every UI screen, AI model cascade, Atwater verifier, EWMA metabolic engine, serverless endpoint, and PostgreSQL table is bi-directionally linked so Graph View renders a unified neural network with zero orphan nodes.
 
 ---
 
-## 🚀 Core Features
+## 🏛️ Hub & System Maps
 
-- 📸 **[[Features/AI-Vision-Nutrition-Swarm|AI Vision Nutrition Swarm]]**: Multimodal image logging with 4-stage progressive review (`plate_detected` → `volumetric_depth` → `usda_mapped` → `atwater_verified`) powered by Gemini 2.5 Flash / Pro.
-- ⚖️ **[[Features/Adaptive-Metabolism-Coach|Adaptive Metabolism Coach]]**: Daily EWMA weight smoothing, dynamic TDEE recalibration, 14-day plateau detection, and glycogen refeed intelligence.
-- 🔬 **[[Features/Evidence-Hierarchy-Atwater|Evidence Hierarchy & Atwater Engine]]**: Strict 4-tier nutritional hierarchy (USDA/IFCT, Barcode Registry, Vision Swarm, Natural Decomposer) and mathematical macro reconciliation ($4P + 4C + 9F \equiv \text{kcal}$).
+- 📐 **[[Architecture]]** — Full-stack architecture, data pipelines, and core file map.
+- ⚡ **[[Active-Context]]** — Current engineering focus, active files, and live deployment state.
+- 🕸️ **[[Code-Graph]]** — Auto-synced AST/import dependency graph & file-to-note index (`npm run brain:sync`).
+- 🔄 **[[DietContext]]** — Client state hub connecting UI views, `localStorage`, offline queue, and `/v1/*`.
 
 ---
 
-## 🛡️ Operating Directives
+## 🤖 AI & Math Engine (`brain/AI-Engine/`)
 
-Every engineering agent must adhere to the rules in `AGENTS.md`:
-1. **Memory First:** Read `[[Architecture]]` and `[[Active-Context]]` before touching code.
-2. **Zero Full-Repo Scans:** Only inspect files explicitly designated in `[[Active-Context]]`.
-3. **Update Memory Last:** Record changes and active files in `[[Active-Context]]` before concluding tasks.
-4. **Keep Notes Clean:** Use standard Markdown with `[[WikiLinks]]` across `brain/`.
+- 🧠 **[[Gemini-Recognition-Swarm]]** — `gemini-2.5-flash` → `gemini-2.5-pro` → `gemini-2.0-flash` vision & Hinglish text cascade.
+- 🔑 **[[Key-Pool-Router]]** — 8-slot round-robin rotation, 60s HTTP 429 cooldowns, and live `vibe_key_pool` telemetry.
+- 🔬 **[[Atwater-Verifier]]** — 4-4-9-7 calorie ground-truth invariant, 4-tier evidence hierarchy, and macro reconciliation.
+- ⚖️ **[[Adaptive-TDEE-EWMA]]** — Mifflin-St Jeor BMR + EWMA ($\alpha = 0.12$) smoothing + 1,200/1,500 kcal physiological floors.
+
+---
+
+## 📱 Core App Features (`brain/Features/`)
+
+- ✨ **[[Today-Dashboard]]** — Luminous calorie ring, per-date hydration, 4 meal cards, Smart Macro Solver, dark-glass dock.
+- 📸 **[[AI-Meal-Scan]]** — Photo upload, clipboard paste, English/Hinglish parser, 1.5× serving scaler, progressive stages.
+- 🔍 **[[Food-Search-Catalog]]** — Tier 1 USDA/IFCT search, Tier 2 Open Food Facts barcode scanner, custom Atwater entry.
+- 🧬 **[[Metabolism-Coach]]** — Adaptive TDEE dashboard, EWMA trend chart, Weekly Autopilot Check-In modal.
+- 👤 **[[Profile-and-Support]]** — Biometric targets, GDPR/DPDP JSON/CSV export, full erasure, billing, Support Desk.
+- 🛡️ **[[Admin-Console]]** — Air-gapped telemetry cockpit, live key pool metrics, DB table inspector, Support Inbox.
+
+### Deep-Dive Reference Notes
+- [[AI-Vision-Nutrition-Swarm]] · [[Adaptive-Metabolism-Coach]] · [[Evidence-Hierarchy-Atwater]]
+
+---
+
+## ⚙️ Backend & Database (`brain/Backend/` & `brain/Database/`)
+
+- 🌐 **[[Serverless-API]]** — Complete `/v1/*` and `/v1/admin/*` route map across `netlify/functions/v1.mts`, `admin.mts`, and `src/routes/v1.ts`.
+- 🗄️ **[[PostgreSQL-Schema]]** — Multi-tenant `vibe_*` relational schema (`vibe_users`, `vibe_key_pool`, `vibe_meals`, `vibe_day_summaries`, `vibe_weights`, `vibe_biometrics`, `vibe_support_tickets`, `vibe_audit_logs`, `vibe_system_telemetry`).

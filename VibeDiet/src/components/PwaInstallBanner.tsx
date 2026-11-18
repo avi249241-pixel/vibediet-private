@@ -55,7 +55,7 @@ export function isIosSafari(): boolean {
 }
 
 export const PwaInstallBanner: React.FC<PwaInstallBannerProps> = ({
-  className = 'fixed bottom-24 left-1/2 -translate-x-1/2 z-40',
+  className = 'fixed top-20 right-4 z-40 max-w-sm',
   onInstalled,
   onDismiss,
 }) => {

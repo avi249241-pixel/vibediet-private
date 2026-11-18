@@ -19,10 +19,17 @@ describe('Auth & Zero-Trust Security Middleware', () => {
     expect(res.status).toBe(401);
   });
 
+  it('rejects legacy admin-token backdoor with 401', async () => {
+    const res = await request(app)
+      .get('/v1/admin/overview')
+      .set('Authorization', 'Bearer admin-token');
+    expect(res.status).toBe(401);
+  });
+
   it('blocks non-admin tokens from /v1/admin/overview with 403', async () => {
     const res = await request(app)
       .get('/v1/admin/overview')
-      .set('Authorization', 'Bearer guest-non-admin-token');
+      .set('Authorization', 'Bearer uid:regular-guest-uid');
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('ADMIN_ROLE_REQUIRED');
   });

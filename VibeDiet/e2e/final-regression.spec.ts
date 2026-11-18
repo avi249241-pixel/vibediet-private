@@ -1,4 +1,20 @@
 import { test, expect } from '@playwright/test';
+import crypto from 'node:crypto';
+
+function makeSignedAdminToken(): string {
+  const secret = process.env.SESSION_SECRET || 'vibediet-signed-session-secret-key-38bdf8';
+  const payload = Buffer.from(
+    JSON.stringify({
+      uid: 'admin-verified-uid',
+      email: 'admin@vibediet.app',
+      isAdmin: true,
+      iat: Date.now(),
+      exp: Date.now() + 3600_000,
+    })
+  ).toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
 
 test.describe('VibeDiet Final Surgical Code Patch & Regression Gate', () => {
   test.beforeEach(async ({ page, request }) => {
@@ -9,8 +25,11 @@ test.describe('VibeDiet Final Surgical Code Patch & Regression Gate', () => {
     } catch {}
 
     await page.addInitScript(() => {
-      window.localStorage.clear();
-      window.sessionStorage.clear();
+      if (!window.sessionStorage.getItem('__pw_cleared__')) {
+        window.localStorage.clear();
+        window.sessionStorage.clear();
+        window.sessionStorage.setItem('__pw_cleared__', '1');
+      }
     });
   });
 
@@ -23,30 +42,34 @@ test.describe('VibeDiet Final Surgical Code Patch & Regression Gate', () => {
     const consumedToday = page.locator('[data-testid="calories-consumed"]');
     await expect(consumedToday).toContainText('1,107');
 
+    // Log +250 ml on Today first so we prove Today's hydration never bleeds onto Yesterday
+    const hydrationSection = page.locator('section[aria-label="Hydration"]');
+    await hydrationSection.locator('button:has-text("+ 250 ml")').click();
+    await expect(hydrationSection).toContainText('250');
+
     // Click Previous Day (<)
     const prevDayBtn = page.locator('[data-testid="prev-day-btn"], button[aria-label="Previous day"]').first();
     await prevDayBtn.scrollIntoViewIfNeeded();
-    await prevDayBtn.click({ force: true });
+    await prevDayBtn.click();
     await page.waitForTimeout(600);
 
     // On Yesterday: Assert 0 kcal consumed
     await expect(consumedToday).toContainText('0');
 
     // On Yesterday: Assert Hydration shows 0 / 2,500 ml and bar width is 0px
-    const hydrationSection = page.locator('section[aria-label="Hydration"]');
-    await expect(hydrationSection).toContainText('0');
-    await expect(hydrationSection).toContainText('2,500 ml');
+    await expect(hydrationSection).toContainText('0 / 2,500 ml');
     const hydrationBar = page.locator('[data-testid="hydration-bar-inner"]');
     await expect(hydrationBar).toHaveCSS('width', '0px');
 
     // Click Next Day (>) back to Today
     const nextDayBtn = page.locator('[data-testid="next-day-btn"], button[aria-label="Next day"]').first();
     await nextDayBtn.scrollIntoViewIfNeeded();
-    await nextDayBtn.click({ force: true });
+    await nextDayBtn.click();
     await page.waitForTimeout(600);
 
-    // Assert Today 1,107 kcal is still completely intact!
+    // Assert Today 1,107 kcal and 250 ml hydration are still completely intact!
     await expect(consumedToday).toContainText('1,107');
+    await expect(hydrationSection).toContainText('250');
   });
 
   // Assertion 2: 1.5x Scan Commit: Previews and commits 1,029 kcal
@@ -106,10 +129,10 @@ test.describe('VibeDiet Final Surgical Code Patch & Regression Gate', () => {
     const modalContent = await page.locator('[data-testid="weekly-check-in-modal"]').innerText();
     expect(modalContent).not.toMatch(/NaN/);
 
-    // Click Keep Current Plan ONCE and verify modal closes immediately
+    // Click Keep Current Plan ONCE (normal user click, not forced) and verify modal closes immediately
     const keepPlanBtn = page.locator('[data-testid="keep-current-plan-btn"]');
     await keepPlanBtn.scrollIntoViewIfNeeded();
-    await keepPlanBtn.click({ force: true });
+    await keepPlanBtn.click();
     await page.waitForSelector('[data-testid="weekly-check-in-modal"]', { state: 'detached', timeout: 5000 });
 
     // Test Command Palette: Press Control+k to open, then Escape ONCE to close
@@ -193,12 +216,54 @@ test.describe('VibeDiet Final Surgical Code Patch & Regression Gate', () => {
     await expect(page.getByText('VIBEDIET BACKEND ENGINE', { exact: false })).toHaveCount(0);
     await expect(page.locator('[data-testid="admin-cockpit-screen"]')).toHaveCount(0);
 
-    // Enter admin passphrase and authorize
+    // Verify legacy backdoor 'admin-token' is rejected and real signed token unlocks console
     await page.locator('[data-testid="admin-passphrase-input"]').fill('admin-token');
+    await page.locator('[data-testid="admin-authorize-btn"]').click();
+    await expect(page.locator('[data-testid="admin-cockpit-screen"]')).toHaveCount(0);
+
+    await page.locator('[data-testid="admin-passphrase-input"]').fill(makeSignedAdminToken());
     await page.locator('[data-testid="admin-authorize-btn"]').click();
     await page.waitForSelector('[data-testid="admin-cockpit-screen"]', { timeout: 10000 });
 
     // Console now renders
+    await expect(page.locator('[data-testid="admin-cockpit-screen"]')).toBeVisible();
+  });
+
+  // Assertion 7: End-to-End AI Recognition -> Atwater -> Today -> Reload -> /admin Telemetry Pipeline
+  test('7. End-to-End Pipeline: AI text recognition (/v1/ai/analyze) -> Atwater -> Today -> Reload -> /admin telemetry', async ({ page }) => {
+    await page.goto('/scan');
+    await page.waitForSelector('[data-testid="photo-log-screen"]', { timeout: 10000 });
+
+    const analyzePromise = page.waitForResponse(
+      (res) => res.url().includes('/v1/ai/analyze') && res.request().method() === 'POST',
+      { timeout: 15000 }
+    );
+
+    await page.locator('[data-testid="dictate-meal-input"]').fill('2 rotis, 1 bowl dal tadka, 150g paneer');
+    await page.locator('[data-testid="submit-text-meal-btn"]').click();
+
+    const analyzeRes = await analyzePromise;
+    expect(analyzeRes.status()).toBe(201);
+    const analyzeJson = await analyzeRes.json();
+    expect(analyzeJson.success).toBe(true);
+    expect(analyzeJson.draft?.recognizedItems?.length).toBeGreaterThan(0);
+
+    // Wait for Atwater-verified draft panel and commit to Today
+    await page.waitForSelector('[data-testid="draft-review-panel"]', { timeout: 10000 });
+    await page.locator('[data-testid="confirm-draft-btn"]').click();
+    await page.waitForSelector('[data-testid="daily-diary-screen"]', { timeout: 10000 });
+
+    // Reload Today and verify persisted meal
+    await page.reload();
+    await page.waitForSelector('[data-testid="daily-diary-screen"]', { timeout: 10000 });
+    await expect(page.locator('[data-testid="calories-consumed"]')).not.toHaveText('0 kcal');
+
+    // Navigate to /admin and verify live key pool & telemetry cockpit renders cleanly with signed token
+    await page.goto('/admin');
+    await page.waitForSelector('[data-testid="admin-auth-gate"]', { timeout: 10000 });
+    await page.locator('[data-testid="admin-passphrase-input"]').fill(makeSignedAdminToken());
+    await page.locator('[data-testid="admin-authorize-btn"]').click();
+    await page.waitForSelector('[data-testid="admin-cockpit-screen"]', { timeout: 10000 });
     await expect(page.locator('[data-testid="admin-cockpit-screen"]')).toBeVisible();
   });
 });

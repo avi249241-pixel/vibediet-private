@@ -1,12 +1,10 @@
 import React, { useMemo, useEffect } from 'react';
-import { createPortal } from 'react-dom';
-import { motion } from 'motion/react';
+import ReactDOM from 'react-dom';
 import {
   WeeklyCheckInParams,
   WeeklyCheckInResult,
   computeWeeklyCheckIn,
 } from '../services/weeklyAutopilot.js';
-import { COLOR_TOKENS, SPRING_PRESETS } from '../client/design-system/tokens.js';
 
 export interface AcceptedTargets {
   calories: number;
@@ -61,11 +59,14 @@ export const WeeklyCheckInModal: React.FC<WeeklyCheckInModalProps> = ({
   result: propResult,
   params: propParams,
 }) => {
-  // Global Escape keydown listener
-  React.useEffect(() => {
+  // Single global Escape keydown listener so 1 Escape press closes immediately
+  useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -125,29 +126,18 @@ export const WeeklyCheckInModal: React.FC<WeeklyCheckInModalProps> = ({
     onClose();
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
   if (!isOpen || typeof document === 'undefined') return null;
 
-  return createPortal(
+  return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 overflow-y-auto">
       <div
-        className="fixed inset-0 z-0 bg-slate-950/65 backdrop-blur-md"
+        className="absolute inset-0 z-0 bg-slate-950/65 backdrop-blur-md"
         onClick={onClose}
         data-testid="weekly-check-in-modal-backdrop"
       />
       <div
         data-testid="weekly-check-in-modal"
-        className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-3xl apple-card bg-white dark:bg-[#121622] border border-slate-900/[0.08] dark:border-white/[0.10] shadow-2xl p-5 sm:p-7 space-y-5 select-none my-auto transition-colors"
+        className="relative z-10 w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-white dark:bg-[#121622] border border-slate-200/80 dark:border-white/15 shadow-2xl p-5 sm:p-7 space-y-5 select-none my-auto transition-colors"
       >
             {/* Ambient Ambient Radial Lighting */}
             <div
@@ -389,28 +379,26 @@ export const WeeklyCheckInModal: React.FC<WeeklyCheckInModalProps> = ({
 
             {/* Modal Actions */}
             <div className="flex flex-col-reverse sm:flex-row items-center gap-3 pt-2">
-              <motion.button
+              <button
                 type="button"
-                whileTap={{ scale: 0.97 }}
                 onClick={handleKeepCurrent}
                 data-testid="keep-current-plan-btn"
-                className="w-full sm:w-1/2 py-3 px-4 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.04] dark:hover:bg-white/[0.08] border border-slate-200 dark:border-white/[0.08] transition cursor-pointer"
+                className="w-full sm:w-1/2 py-3 px-4 rounded-xl text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:text-slate-950 dark:hover:text-white bg-slate-100 hover:bg-slate-200/80 dark:bg-white/[0.06] dark:hover:bg-white/[0.12] border border-slate-200 dark:border-white/15 transition active:scale-[0.98] cursor-pointer"
               >
                 Keep Current Plan
-              </motion.button>
+              </button>
 
-              <motion.button
+              <button
                 type="button"
-                whileTap={{ scale: 0.97 }}
                 onClick={handleAccept}
                 data-testid="accept-targets-btn"
-                className="w-full sm:w-1/2 py-3 px-4 rounded-xl text-xs font-extrabold tracking-wide text-white transition cursor-pointer hover:brightness-105 shadow-sm"
+                className="w-full sm:w-1/2 py-3 px-4 rounded-xl text-xs font-extrabold tracking-wide text-white transition active:scale-[0.98] cursor-pointer hover:brightness-105 shadow-sm"
                 style={{
                   background: 'linear-gradient(135deg, #0EA5E9, #38BDF8)',
                 }}
               >
                 Accept &amp; Update Targets
-              </motion.button>
+              </button>
             </div>
           </div>
         </div>,

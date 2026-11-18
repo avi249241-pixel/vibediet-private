@@ -1,6 +1,7 @@
 import { DaySummary, MealEntry, SupportTicket, UserBiometrics, WeightLogEntry } from '../types/index.js';
 import { PhotoDraft } from '../shared/draftTypes.js';
 import { DEFAULT_USER_BIOMETRICS, SEED_INITIAL_MEALS, SEED_REPEAT_MEALS, SEED_WEIGHT_LOGS } from '../data/mockData.js';
+import { dateKey } from '../shared/physics/atwater.js';
 
 export interface UserStoreBucket {
   days: Map<string, DaySummary>;
@@ -23,7 +24,7 @@ class InMemoryMockFirestore {
     let bucket = this.users.get(uid);
     if (!bucket) {
       const initialMealsMap = new Map<string, MealEntry>();
-      const today = new Date().toISOString().slice(0, 10);
+      const today = dateKey();
       const isDemoUser = uid === 'demo-user-uid' || uid === 'guest-local-uid' || uid === 'demo-user';
       if (isDemoUser) {
         for (const m of SEED_INITIAL_MEALS) {
@@ -39,11 +40,7 @@ class InMemoryMockFirestore {
         biometrics: { ...DEFAULT_USER_BIOMETRICS },
       };
       this.users.set(uid, bucket);
-      const summary = this.recomputeDay(uid, today);
-      if (isDemoUser) {
-        summary.waterMl = 1750;
-        bucket.days.set(today, summary);
-      }
+      this.recomputeDay(uid, today);
     }
     return bucket;
   }

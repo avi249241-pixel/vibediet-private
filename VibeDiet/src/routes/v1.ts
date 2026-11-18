@@ -224,6 +224,73 @@ v1Router.post('/drafts', requireAuth, async (req: AuthenticatedRequest, res: Res
   });
 });
 
+// Unified End-to-End AI Recognition Pipeline: Photo + English/Hinglish Text → KeyPool → Swarm → Atwater
+v1Router.post('/ai/analyze', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const uid = req.user!.uid;
+  const body = req.body || {};
+  const t0 = Date.now();
+  const now = new Date().toISOString();
+  const date = typeof body.date === 'string' && body.date ? body.date : now.slice(0, 10);
+  const slot: MealEntry['slot'] = ['breakfast', 'lunch', 'dinner', 'snack'].includes(body.slot || body.slotHint)
+    ? (body.slot || body.slotHint)
+    : 'lunch';
+  const mealDescription = typeof body.mealDescription === 'string' ? body.mealDescription.trim() : '';
+  const imageBase64 = typeof body.imageBase64 === 'string' ? body.imageBase64 : undefined;
+  const contextNote = typeof body.contextNote === 'string' ? body.contextNote.trim() : undefined;
+
+  if (!mealDescription && !imageBase64 && !contextNote) {
+    res.status(400).json({ error: 'Provide either imageBase64, mealDescription, or contextNote' });
+    return;
+  }
+
+  const draftId = `draft-ai-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const initialDraft: PhotoDraft = {
+    id: draftId,
+    uid,
+    date,
+    slot,
+    status: 'queued',
+    createdAt: now,
+    updatedAt: now,
+    imageBase64,
+    thumbnailDataUrl: typeof body.thumbnailDataUrl === 'string' ? body.thumbnailDataUrl : undefined,
+    contextNote: contextNote || mealDescription || undefined,
+    mealHint: contextNote || mealDescription || undefined,
+    scanMode: body.scanMode === 'nutrition_label_ocr' ? 'nutrition_label_ocr' : 'plate_vision',
+    servingMultiplier: Number(body.servingMultiplier) > 0 ? Number(body.servingMultiplier) : 1.0,
+    recognizedItems: [],
+    questions: [],
+    isDemoMode: !keyPoolRouter.hasConfiguredKeys(),
+  };
+
+  await dataStore.saveDraft(uid, initialDraft);
+
+  const processed = mealDescription && !imageBase64
+    ? await processTextDraft(uid, draftId, mealDescription)
+    : await processDraft(uid, draftId);
+
+  const latencyMs = Math.max(1, Date.now() - t0);
+  setSwarmLastExecutionLatency(latencyMs);
+
+  if (!processed) {
+    res.status(500).json({ error: 'AI recognition pipeline failed to produce an Atwater-verified draft' });
+    return;
+  }
+
+  // Re-verify Atwater 4-4-9-7 invariant across all recognized items
+  processed.recognizedItems = (processed.recognizedItems || []).map((item) => normalizeFoodItem(item));
+
+  res.status(201).json({
+    success: true,
+    draftId: processed.id,
+    status: processed.status,
+    stage: processed.stage || 'atwater_verified',
+    latencyMs,
+    telemetry: keyPoolRouter.getTelemetry(),
+    draft: processed,
+  });
+});
+
 v1Router.post('/drafts/text', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   const parsed = CreateTextDraftSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -715,6 +782,13 @@ v1Router.post('/support', requireAuth, async (req: AuthenticatedRequest, res: Re
     createdAt: new Date().toISOString(),
   });
 
+  logSecurityEvent({
+    eventType: 'support_ticket_created',
+    uid: req.user!.uid,
+    ip: req.ip || req.socket?.remoteAddress,
+    details: { ticketId: ticket.id, category: ticket.category, subject: ticket.subject },
+  });
+
   res.status(201).json({ ticketId: ticket.id, ticket });
 });
 
@@ -913,6 +987,12 @@ v1Router.post(
       res.status(404).json({ error: 'Support ticket not found' });
       return;
     }
+    logSecurityEvent({
+      eventType: 'support_ticket_resolved',
+      uid: req.user!.uid,
+      ip: req.ip || req.socket?.remoteAddress,
+      details: { ticketId },
+    });
     res.json({ ticket: resolved });
   }
 );
@@ -964,6 +1044,10 @@ v1Router.post('/billing/checkout', requireAuth, (req: AuthenticatedRequest, res:
 });
 
 v1Router.post('/billing/simulate-webhook', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  if (process.env.NODE_ENV === 'production') {
+    res.status(403).json({ error: 'Forbidden: Simulated webhooks are disabled in production' });
+    return;
+  }
   const uid = req.user!.uid;
   const planKey = req.body?.plan === 'monthly' ? 'monthly' : 'annual';
   const gateway = req.body?.gateway === 'stripe' ? 'stripe' : 'razorpay';
@@ -994,8 +1078,8 @@ v1Router.post('/billing/webhooks/razorpay', async (req: Request, res: Response) 
   const signature = req.headers['x-razorpay-signature'] as string;
   const rawPayload = JSON.stringify(req.body);
 
-  if (signature && !verifyRazorpaySignature(rawPayload, signature)) {
-    res.status(400).json({ error: 'Invalid Razorpay webhook signature' });
+  if (!signature || !verifyRazorpaySignature(rawPayload, signature)) {
+    res.status(400).json({ error: 'Missing or invalid Razorpay webhook HMAC-SHA256 signature' });
     return;
   }
 
@@ -1024,8 +1108,8 @@ v1Router.post('/billing/webhooks/stripe', async (req: Request, res: Response) =>
   const signature = req.headers['stripe-signature'] as string;
   const rawPayload = JSON.stringify(req.body);
 
-  if (signature && !verifyStripeSignature(rawPayload, signature)) {
-    res.status(400).json({ error: 'Invalid Stripe webhook signature' });
+  if (!signature || !verifyStripeSignature(rawPayload, signature)) {
+    res.status(400).json({ error: 'Missing or invalid Stripe webhook HMAC-SHA256 signature' });
     return;
   }
 

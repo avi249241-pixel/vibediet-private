@@ -1,6 +1,8 @@
 # 📸 AI Vision Nutrition Swarm
 
-Linked: [[00-Home]] | [[Architecture]]
+#ai-model #feature
+
+Linked: [[00-Home]] | [[Architecture]] | [[Gemini-Recognition-Swarm]] | [[Key-Pool-Router]] | [[AI-Meal-Scan]] | [[Atwater-Verifier]]
 
 ## Overview
 The AI Vision Nutrition Swarm automates food logging from camera captures and photo uploads using multimodal Gemini models (`gemini-2.5-flash` primary, `gemini-2.5-pro` fallback).

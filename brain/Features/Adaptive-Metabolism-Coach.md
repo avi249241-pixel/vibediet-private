@@ -1,6 +1,8 @@
 # ⚖️ Adaptive Metabolism Coach
 
-Linked: [[00-Home]] | [[Architecture]]
+#ai-model #feature
+
+Linked: [[00-Home]] | [[Architecture]] | [[Adaptive-TDEE-EWMA]] | [[Metabolism-Coach]] | [[Today-Dashboard]]
 
 ## Overview
 The Adaptive Metabolism Coach continuously adjusts daily caloric targets based on real-world weight trends and logged energy intake, replacing static formula estimates with an empirical feedback loop.

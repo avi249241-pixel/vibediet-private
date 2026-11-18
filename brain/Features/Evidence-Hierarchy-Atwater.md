@@ -1,6 +1,8 @@
 # 🔬 Evidence Hierarchy & Atwater Engine
 
-Linked: [[00-Home]] | [[Architecture]]
+#ai-model #feature
+
+Linked: [[00-Home]] | [[Architecture]] | [[Atwater-Verifier]] | [[Food-Search-Catalog]] | [[AI-Meal-Scan]]
 
 ## Overview
 VibeDiet rejects arbitrary calorie estimates by enforcing a strict 4-tier evidence hierarchy and deterministic Atwater general factor reconciliation across all meals.

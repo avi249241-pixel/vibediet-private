@@ -145,4 +145,25 @@ describe('Atwater 4-4-9-7 General Factor Reconciliation Engine', () => {
     expect(scaled20.calories).toBe(400);
     expect(scaled20.protein).toBe(40);
   });
+
+  it('deriveTargets() guarantees 4 * P + 4 * C + 9 * F === calorieTarget across arbitrary targets', async () => {
+    const { deriveTargets } = await import('../src/shared/physics/atwater.js');
+    for (const target of [1200, 1500, 1853, 2000, 2245, 2751, 3102]) {
+      const t = deriveTargets(target);
+      expect(t.calories).toBe(target);
+      expect(4 * t.protein + 4 * t.carbs + 9 * t.fat).toBe(target);
+      expect(t.protein).toBeGreaterThan(0);
+      expect(t.carbs).toBeGreaterThan(0);
+      expect(t.fat).toBeGreaterThan(0);
+    }
+  });
+
+  it('dateKey() formats local calendar dates in YYYY-MM-DD without UTC rollover shift', async () => {
+    const { dateKey } = await import('../src/shared/physics/atwater.js');
+    // Construct local 00:30 AM date — in UTC+5:30 ISO string would be previous day, dateKey must stay local day
+    const localEarlyMorning = new Date(2026, 10, 18, 0, 30, 0);
+    expect(dateKey(localEarlyMorning)).toBe('2026-11-18');
+    const localLateNight = new Date(2026, 0, 5, 23, 59, 0);
+    expect(dateKey(localLateNight)).toBe('2026-01-05');
+  });
 });

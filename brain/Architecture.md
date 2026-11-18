@@ -1,40 +1,47 @@
 # 📐 VibeDiet Architecture
 
+#hub
+
+Linked: [[00-Home]] | [[Active-Context]] | [[Code-Graph]] | [[DietContext]] | [[Serverless-API]] | [[PostgreSQL-Schema]]
+
 ## 1. Tech Stack
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS 4, Motion, Lucide Icons.
-- **Backend:** Node.js 20+, Express, Helmet, CORS, express-rate-limit.
-- **Serverless:** Netlify Functions v2 (`@netlify/functions`, TypeScript `.mts`), Netlify Database (`@netlify/database`).
-- **AI / Vision Swarm:** `@google/genai` (Gemini 2.5 Flash / Pro) with multi-key rotation and cooldown router.
-- **Offline / Packaging:** PWA ServiceWorker (`sw.js`), single-file zero-dependency bundle (`dist/VibeDiet-App.html`).
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS 4 (spatial frosted-glass UI), Motion, Lucide Icons.
+- **Backend:** Node.js 20+, Express (`server.ts`, `src/routes/v1.ts`), Helmet, CORS, rate limiters.
+- **Serverless:** Netlify Functions v2 (`netlify/functions/v1.mts`, `admin.mts`), Netlify Database (`@netlify/database`).
+- **AI / Physics:** `@google/genai` (`[[Gemini-Recognition-Swarm]]`), `[[Key-Pool-Router]]`, `[[Atwater-Verifier]]`, `[[Adaptive-TDEE-EWMA]]`.
+- **Offline / PWA:** ServiceWorker (`sw.js`), `offlineSyncQueue.ts`, zero-dependency `dist/VibeDiet-App.html`.
 
-## 2. Database & Multi-Tenant Setup
-- **Identity Isolation:** Browser-scoped local UID generation (`usr_<uuid>`) stored in `localStorage` (`vibediet_user_id`).
-- **Production Store:** Netlify Postgres database (`vibe_users`, `vibe_meals`, `vibe_weights`, `vibe_days`, `vibe_biometrics`, `vibe_support_tickets`, `vibe_key_pool`).
-- **Fallback / Local Store:** Tenant-partitioned file store (`.data/tenants/<uid>.json`) and browser `localStorage` (`vibediet_cache_v1`).
+## 2. End-to-End Neural Pipeline
+```mermaid
+flowchart LR
+  UI["UI Views: Today / AI Scan / Search / Coach / Profile"] --> DC["DietContext + AuthContext"]
+  DC --> API["Serverless API: /v1/ai/analyze, /v1/meals, /v1/foods, /v1/weights, /v1/support"]
+  API --> KPR["KeyPoolRouter (8-slot 429 cooldown)"]
+  KPR --> SWARM["Gemini Swarm (2.5-flash -> 2.5-pro -> 2.0-flash)"]
+  SWARM --> ATW["Atwater 4-4-9-7 Verifier"]
+  API --> CAT["FoodCatalogService (USDA + Open Food Facts)"]
+  CAT --> ATW
+  API --> TDEE["Adaptive TDEE + EWMA (a=0.12)"]
+  ATW --> DB["PostgreSQL (vibe_meals, vibe_day_summaries)"]
+  TDEE --> DB2["PostgreSQL (vibe_weights, vibe_biometrics)"]
+  KPR --> ADM["Admin Console (vibe_key_pool, vibe_system_telemetry, vibe_audit_logs)"]
+```
 
-## 3. High-Level Data Flow
-1. **Meal Ingestion:** Captured via Camera/Photo, natural language text prompt, or barcode scan.
-2. **Pre-Processing:** Client canvas downscales images under 500KB (`imageCompressor.ts`); zero-fill memory buffers.
-3. **Nutrient Resolution:** 4-Tier Hierarchy: Tier 1 USDA/IFCT -> Tier 2 Barcode -> Tier 3 Gemini Swarm -> Tier 4 Natural Decomposer.
-4. **Atwater Reconciliation:** $4 \times \text{protein} + 4 \times \text{carbs} + 9 \times \text{fat} + 2 \times \text{fiber} \equiv \text{calories}$. Points strictly bound by $[\text{minCalories}, \text{maxCalories}]$.
-5. **Adaptive Metabolism:** Weigh-ins smoothed via EWMA ($\alpha = 0.12$). TDEE adjusts targets with safety floors (1,200 kcal female, 1,500 kcal male).
+## 3. Connected Pillars
+- **AI Recognition Pipeline:** [[AI-Meal-Scan]] → [[DietContext]] → [[Serverless-API]] (`POST /v1/ai/analyze`) → [[Key-Pool-Router]] → [[Gemini-Recognition-Swarm]] → [[Atwater-Verifier]] → [[Today-Dashboard]] → [[Admin-Console]].
+- **Catalog & Barcode Pipeline:** [[Food-Search-Catalog]] → [[Serverless-API]] (`/v1/foods/*`) → [[Atwater-Verifier]] → [[DietContext]] → [[PostgreSQL-Schema]] (`vibe_meals`).
+- **Metabolic Autopilot Pipeline:** [[Metabolism-Coach]] → [[Adaptive-TDEE-EWMA]] → [[Serverless-API]] (`/v1/weights`, `/v1/biometrics`) → [[PostgreSQL-Schema]] → [[Today-Dashboard]].
+- **Governance & Support Pipeline:** [[Profile-and-Support]] → [[Serverless-API]] (`/v1/support`) → [[PostgreSQL-Schema]] (`vibe_support_tickets`, `vibe_audit_logs`) → [[Admin-Console]].
 
 ## 4. Core Source File Map
-- `src/App.tsx`: Central router, navigation tabs, hash routing (`#photo`, `#barcode`), and modal overlays.
-- `src/components/DailyDiaryScreen.tsx`: Main diary dashboard, macro progress rings, meal cards, and date navigator.
-- `src/components/PhotoLoggingScreen.tsx`: Image capture interface, client compression, and progressive draft status.
-- `src/components/DraftReviewModal.tsx`: Interactive draft item editor, gram tuning, and Atwater recalculation.
-- `src/components/MetabolismCoachScreen.tsx`: Adaptive TDEE dashboard, EWMA weight trend graph, and plateau logic.
-- `src/components/AdminDashboardScreen.tsx`: Air-gapped administration cockpit for memory, key pool health, and telemetry.
-- `src/context/AuthContext.tsx`: Browser-scoped user identity management (`usr_<uuid>`), Google demo, and admin auth.
-- `src/context/DietContext.tsx`: Root diet state provider, local persistence, date handling, and offline queue flush.
-- `src/shared/physics/atwater.ts`: 4-9-4 Atwater formula, confidence intervals, and calendar-safe `getLocalDateString`.
-- `src/shared/physics/adaptiveTdee.ts`: Mifflin-St Jeor BMR, EWMA weight smoothing, and adaptive caloric target math.
-- `src/services/geminiNutritionSwarm.ts`: Multi-agent Gemini vision reasoning pipeline with volumetric estimation.
-- `src/services/keyPoolRouter.ts`: Multi-key rotation, cooldown management, and exponential backoff for Gemini API keys.
-- `src/services/naturalLanguageMealParser.ts`: Deterministic decomposition engine for natural text meal descriptions.
-- `src/services/offlineSyncQueue.ts`: Indexed/local offline mutation queue with automatic replay on reconnection.
-- `server.ts`: Express application server with Helmet security, CORS origin gate, rate limiters, and static PWA.
-- `src/routes/v1.ts`: Primary Express REST API router implementing auth, drafts, meals, weights, biometrics, and billing.
-- `netlify/functions/v1.mts`: Netlify serverless consumer handler mirroring all `/v1/*` routes with Netlify DB integration.
-- `netlify/functions/admin.mts`: Netlify serverless admin handler providing protected overview, telemetry, and table inspection.
+- `src/App.tsx`: Consumer shell, ambient dual-tone glow backdrop, tab routing, modals, footer.
+- `src/context/DietContext.tsx` & `src/context/AuthContext.tsx`: [[DietContext]] state, `usr_<uuid>` isolation, offline sync queue.
+- `src/components/redesign/VibeDietDashboard.tsx` & `src/components/DailyDiaryScreen.tsx`: [[Today-Dashboard]] frosted-glass bento & calorie ring.
+- `src/components/redesign/VibeDietAiScannerView.tsx` & `src/components/PhotoLogScreen.tsx`: [[AI-Meal-Scan]] photo/text capture & 1.5× preview.
+- `src/components/ManualEntryScreen.tsx` & `src/components/BarcodeScannerModal.tsx`: [[Food-Search-Catalog]] USDA & barcode lookup.
+- `src/components/MetabolismCoachScreen.tsx` & `src/components/WeeklyCheckInModal.tsx`: [[Metabolism-Coach]] EWMA coach & autopilot modal.
+- `src/components/ProfileScreen.tsx`: [[Profile-and-Support]] biometrics, GDPR export/erasure, support tickets.
+- `src/components/AdminDashboardScreen.tsx`: [[Admin-Console]] key pool, table inspector, support triage.
+- `src/services/geminiNutritionSwarm.ts` & `src/services/keyPoolRouter.ts`: [[Gemini-Recognition-Swarm]] & [[Key-Pool-Router]].
+- `src/shared/physics/atwater.ts` & `src/shared/physics/adaptiveTdee.ts`: [[Atwater-Verifier]] & [[Adaptive-TDEE-EWMA]].
+- `netlify/functions/v1.mts`, `netlify/functions/admin.mts`, `src/routes/v1.ts`: [[Serverless-API]] & [[PostgreSQL-Schema]] persistence.

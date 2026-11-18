@@ -139,3 +139,70 @@ export function normalizeFoodItem(raw: Partial<FoodItemEntry> & { name: string }
     referenceAnchor: raw.referenceAnchor,
   };
 }
+
+/**
+ * Returns local calendar date key in YYYY-MM-DD format (immune to UTC midnight shifts).
+ */
+export function dateKey(d: Date = new Date()): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export interface MacroSplitRatio {
+  proteinPct?: number; // e.g. 0.30 or 30
+  carbPct?: number;    // e.g. 0.44 or 44
+  fatPct?: number;     // e.g. 0.26 or 26
+}
+
+export interface DerivedMacroTargets {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}
+
+/**
+ * Deterministically derives macro targets (g) from a daily calorie target and macro split
+ * such that 4 * protein + 4 * carbs + 9 * fat === calorieTarget (exact 0-kcal discrepancy).
+ */
+export function deriveTargets(
+  calorieTarget: number,
+  split: MacroSplitRatio = {}
+): DerivedMacroTargets {
+  const calories = Math.max(400, Math.round(Number(calorieTarget) || 2245));
+  const norm = (val: number | undefined, fallback: number) => {
+    if (typeof val !== 'number' || !Number.isFinite(val) || val <= 0) return fallback;
+    return val > 1 ? val / 100 : val;
+  };
+
+  let pPct = norm(split.proteinPct, 0.30);
+  let fPct = norm(split.fatPct, 0.26);
+  let cPct = norm(split.carbPct, Math.max(0.1, 1 - pPct - fPct));
+  const sumPct = pPct + cPct + fPct;
+  pPct /= sumPct;
+  fPct /= sumPct;
+
+  // Choose integer fat grams congruent to (calories mod 4) so (calories - 9 * fat) is divisible by 4
+  const targetMod4 = ((calories % 4) + 4) % 4;
+  const rawFat = Math.max(12, Math.round((calories * fPct) / 9));
+  let bestFat = rawFat;
+  let bestDiff = Infinity;
+  for (let delta = -3; delta <= 3; delta++) {
+    const candidate = rawFat + delta;
+    if (candidate >= 8 && candidate * 9 < calories - 160 && ((candidate % 4) + 4) % 4 === targetMod4) {
+      if (Math.abs(delta) < bestDiff) {
+        bestDiff = Math.abs(delta);
+        bestFat = candidate;
+      }
+    }
+  }
+  const fat = bestFat;
+  const remainingForPC = calories - fat * 9;
+  const maxProtein = Math.floor(remainingForPC / 4) - 10;
+  const protein = Math.max(20, Math.min(maxProtein, Math.round((calories * pPct) / 4)));
+  const carbs = Math.round((remainingForPC - protein * 4) / 4);
+
+  return { calories, protein, carbs, fat };
+}

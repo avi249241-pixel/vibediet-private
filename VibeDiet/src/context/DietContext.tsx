@@ -25,9 +25,11 @@ import {
   computeEwmaWeight,
   normalizeFoodItem,
   getLocalDateString,
+  dateKey,
+  deriveTargets,
 } from '../utils/atwater.js';
 import { parseNaturalLanguageMeal } from '../services/naturalLanguageMealParser.js';
-import { enqueueMutation, flushOfflineQueue } from '../services/offlineSyncQueue.js';
+import { enqueueOfflineMutation as enqueueMutation, flushOfflineQueue } from '../services/offlineSyncQueue.js';
 
 interface DietContextValue {
   selectedDate: string;
@@ -110,8 +112,12 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const auth = useContext(AuthContext);
   const token = auth?.token || 'uid:demo-user-uid';
 
-  const todayStr = getLocalDateString();
-  const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+  const todayStr = dateKey();
+  const [selectedDate, setSelectedDateRaw] = useState<string>(todayStr);
+  const setSelectedDate = (nextDate: string) => {
+    const maxDate = dateKey();
+    setSelectedDateRaw(nextDate > maxDate ? maxDate : nextDate);
+  };
 
   const initialPersisted = useMemo(() => loadPersistedData(), []);
 
@@ -139,14 +145,16 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return SEED_INITIAL_MEALS.map((m) => ({ ...m, date: todayStr }));
   });
   const [waterByDate, setWaterByDate] = useState<Record<string, number>>(() => {
-    const today = getLocalDateString();
-    const initial = initialPersisted?.waterByDate ? { ...initialPersisted.waterByDate } : { [today]: 1750 };
-    for (const [d, val] of Object.entries(initial)) {
-      if (d !== today && val === 1750) {
-        initial[d] = 0;
+    if (initialPersisted?.waterByDate) {
+      const cleaned: Record<string, number> = {};
+      for (const [d, val] of Object.entries(initialPersisted.waterByDate)) {
+        if (typeof val === 'number' && Number.isFinite(val)) {
+          cleaned[d] = Math.max(0, val);
+        }
       }
+      return cleaned;
     }
-    return initial;
+    return {};
   });
   const [repeatMeals, setRepeatMeals] = useState<MealEntry[]>(
     () => (initialPersisted?.repeatMeals && initialPersisted.repeatMeals.length > 0)
@@ -246,26 +254,24 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const others = prev.filter((m) => m.date !== selectedDate);
             const currentLocal = prev.filter((m) => m.date === selectedDate);
             const mealMap = new Map<string, MealEntry>();
-            dayMeals.forEach((m: MealEntry) => mealMap.set(m.id, m));
+            const seenFingerprints = new Set<string>();
+            const fingerprint = (m: MealEntry) =>
+              `${m.date}|${m.slot}|${m.title}|${Math.round(m.totalCalories)}`;
+            dayMeals.forEach((m: MealEntry) => {
+              mealMap.set(m.id, m);
+              seenFingerprints.add(fingerprint(m));
+            });
             currentLocal.forEach((m) => {
-              if (!mealMap.has(m.id)) {
+              if (!mealMap.has(m.id) && !seenFingerprints.has(fingerprint(m))) {
                 mealMap.set(m.id, m);
+                seenFingerprints.add(fingerprint(m));
               }
             });
             return [...others, ...Array.from(mealMap.values())];
           });
           if (typeof dayRes.day.waterMl === 'number') {
-            const today = getLocalDateString();
-            let water = dayRes.day.waterMl;
-            if (selectedDate !== today && water === 1750 && (!dayMeals || dayMeals.length === 0)) {
-              water = 0;
-            }
-            setWaterByDate((prev) => {
-              if (water === 0 && (prev[selectedDate] ?? 0) > 0) {
-                return prev;
-              }
-              return { ...prev, [selectedDate]: water };
-            });
+            const water = Math.max(0, dayRes.day.waterMl);
+            setWaterByDate((prev) => ({ ...prev, [selectedDate]: water }));
           }
         }
 
@@ -290,9 +296,10 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setBiometrics((prev) => {
             const incoming = bioRes.biometrics;
             const targetCalories = incoming.targetCalories || prev.targetCalories || 2245;
-            const targetProtein = incoming.targetProtein || prev.targetProtein || Math.round((incoming.weightKg || prev.weightKg || 76) * 2.1);
-            const targetFat = incoming.targetFat || prev.targetFat || Math.round((targetCalories * 0.26) / 9);
-            const targetCarbs = incoming.targetCarbs || prev.targetCarbs || Math.max(30, Math.round((targetCalories - targetProtein * 4 - targetFat * 9) / 4));
+            const derived = deriveTargets(targetCalories, incoming.macroSplit);
+            const targetProtein = incoming.targetProtein || derived.protein;
+            const targetFat = incoming.targetFat || derived.fat;
+            const targetCarbs = incoming.targetCarbs || derived.carbs;
             const bmr = incoming.bmr || prev.bmr || calculateMifflinStJeorBmr(incoming.gender || prev.gender, incoming.weightKg || prev.weightKg, incoming.heightCm || prev.heightCm, incoming.age || prev.age);
             const baselineTdee = incoming.baselineTdee || prev.baselineTdee || Math.round(bmr * 1.55);
             return {
@@ -361,17 +368,10 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
         merged.gender,
         merged.goalMode
       );
-      const targetProtein = Math.round(merged.weightKg * 2.1);
-      const targetFat = Math.round((targetCalories * 0.26) / 9);
-      let targetCarbs = Math.max(
-        30,
-        Math.round((targetCalories - targetProtein * 4 - targetFat * 9) / 4)
-      );
-      const currentMacroSum = targetProtein * 4 + targetCarbs * 4 + targetFat * 9;
-      const macroDiff = targetCalories - currentMacroSum;
-      if (macroDiff !== 0) {
-        targetCarbs = Math.max(30, targetCarbs + Math.round(macroDiff / 4));
-      }
+      const derived = deriveTargets(targetCalories);
+      const targetProtein = next.targetProtein ?? derived.protein;
+      const targetFat = next.targetFat ?? derived.fat;
+      const targetCarbs = next.targetCarbs ?? derived.carbs;
 
       return {
         ...merged,
@@ -451,19 +451,29 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        id: meal.id,
         date: selectedDate,
         slot,
         title,
         items,
       }),
-    }).catch(() => {
-      enqueueMutation('LOG_MEAL', {
-        date: selectedDate,
-        slot,
-        title,
-        items,
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.meal?.id && data.meal.id !== meal.id) {
+          setMeals((prev) =>
+            prev.map((m) => (m.id === meal.id ? { ...m, id: data.meal.id } : m))
+          );
+        }
+      })
+      .catch(() => {
+        enqueueMutation('LOG_MEAL', {
+          date: selectedDate,
+          slot,
+          title,
+          items,
+        });
       });
-    });
     return meal;
   };
 
@@ -546,7 +556,7 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (contextNote && contextNote.trim().length > 2 && !contextNote.includes('Indian-fusion bowl')) {
       const parsed = parseNaturalLanguageMeal(contextNote.trim(), slot, auth?.user?.uid);
       recognizedItems = parsed.recognizedItems;
-      mealTitle = parsed.mealTitle;
+      mealTitle = parsed.mealTitle || contextNote.trim();
     } else if (isLabel) {
       recognizedItems = [
         normalizeFoodItem({
@@ -596,7 +606,7 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (thumbnailDataUrl || fullImageDataUrl) {
       const payloadImage = fullImageDataUrl || thumbnailDataUrl;
-      fetch('/v1/drafts', {
+      fetch('/v1/ai/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -615,7 +625,23 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
-          if (data?.draftId) {
+          if (data?.draft && Array.isArray(data.draft.recognizedItems) && data.draft.recognizedItems.length > 0) {
+            // Preserve user's sample-meal demo preview when contextNote explicitly asks for demo Indian-fusion bowl
+            if (contextNote && contextNote.includes('Indian-fusion bowl')) {
+              setActiveDraft((prev) => (prev ? { ...prev, id: data.draftId || prev.id } : null));
+            } else {
+              setActiveDraft((prev) =>
+                prev
+                  ? {
+                      ...prev,
+                      ...data.draft,
+                      id: data.draftId || data.draft.id || prev.id,
+                      thumbnailDataUrl: prev.thumbnailDataUrl || data.draft.thumbnailDataUrl,
+                    }
+                  : null
+              );
+            }
+          } else if (data?.draftId) {
             setActiveDraft((prev) => (prev ? { ...prev, id: data.draftId } : null));
           }
         })
@@ -693,14 +719,6 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     });
   };
-      return {
-        ...prev,
-        servingMultiplier: mult,
-        recognizedItems: items,
-        updatedAt: new Date().toISOString(),
-      };
-    });
-  };
 
   const applyMacroDeltaChip = (
     itemId: string,
@@ -737,7 +755,7 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ): Promise<PhotoDraft | null> => {
     const slot = slotHint || 'lunch';
     try {
-      const res = await fetch('/v1/drafts/text', {
+      const res = await fetch('/v1/ai/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -745,6 +763,7 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
         body: JSON.stringify({
           mealDescription,
+          slot,
           slotHint: slot,
           date: selectedDate,
         }),
@@ -758,13 +777,12 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch (err) {
-      console.warn('[DietContext] Failed to call /v1/drafts/text:', err);
+      console.warn('[DietContext] Failed to call /v1/ai/analyze:', err);
     }
 
     const fallbackDraft = parseNaturalLanguageMeal(mealDescription, slot, auth?.user?.uid || 'user-local');
     setActiveDraft(fallbackDraft);
     return fallbackDraft;
-  };
   };
 
   const answerClarifyingQuestion = (questionId: string, optionId: string) => {
@@ -810,7 +828,31 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ? overrideMultiplier
       : (activeDraft.servingMultiplier || 1);
 
-    const finalItems = activeDraft.recognizedItems.map((item) => {
+    const targetTotalCalories = Math.round(
+      activeDraft.recognizedItems.reduce((sum, i) => sum + i.calories, 0) * mult
+    );
+
+    // Largest-remainder calorie allocation so every scaled item stays within ±0.5 kcal
+    // and the committed meal total matches the previewed total to the exact calorie.
+    const scaledCalories: number[] = (() => {
+      if (mult === 1) return activeDraft.recognizedItems.map((i) => i.calories);
+      const exacts = activeDraft.recognizedItems.map((i, idx) => {
+        const raw = i.calories * mult;
+        const floor = Math.floor(raw);
+        return { idx, raw, floor, rem: raw - floor };
+      });
+      const floorSum = exacts.reduce((s, e) => s + e.floor, 0);
+      let remainder = targetTotalCalories - floorSum;
+      const result = exacts.map((e) => e.floor);
+      const byRem = [...exacts].sort((a, b) => b.rem - a.rem || b.raw - a.raw);
+      for (let k = 0; k < byRem.length && remainder > 0; k++) {
+        result[byRem[k].idx] += 1;
+        remainder -= 1;
+      }
+      return result;
+    })();
+
+    const finalItems = activeDraft.recognizedItems.map((item, idx) => {
       if (mult === 1) return item;
       return normalizeFoodItem({
         ...item,
@@ -824,7 +866,7 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
         calories: undefined,
         minCalories: undefined,
         maxCalories: undefined,
-        reportedCalories: Math.round(item.calories * mult),
+        reportedCalories: scaledCalories[idx],
       });
     });
 
@@ -843,6 +885,7 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        mealId: meal.id,
         date: draftToConfirm.date || selectedDate,
         slot: draftToConfirm.slot,
         title: draftToConfirm.mealTitle,

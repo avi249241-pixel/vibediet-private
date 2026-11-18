@@ -14,7 +14,10 @@ export interface SecurityAuditEvent {
     | 'draft_confirmed'
     | 'draft_purged'
     | 'admin_auth_success'
-    | 'admin_auth_failed';
+    | 'admin_auth_failed'
+    | 'support_ticket_created'
+    | 'support_ticket_resolved'
+    | 'ai_analyze_completed';
   ip?: string;
   uid?: string;
   details?: Record<string, any>;

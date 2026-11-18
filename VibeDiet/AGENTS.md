@@ -5,7 +5,7 @@ If you are an AI agent working on VibeDiet, you **must adhere to these operating
 ## Core Memory & Workflow Rules
 1. **Rule 1 (Memory First):** At the start of EVERY task, read `brain/Architecture.md` and `brain/Active-Context.md` BEFORE touching or searching any code.
 2. **Rule 2 (Zero Full-Repo Scans):** Never run broad directory scans or read unrelated files. Only open the exact files listed in `brain/Active-Context.md` or directly required for the requested change.
-3. **Rule 3 (Update Memory Last):** Before finishing ANY task, update `brain/Active-Context.md` with what was changed, which files were modified, and the current status so future tasks have immediate context.
+3. **Rule 3 (Update Memory Last & Sync Graph):** Before finishing ANY task, update `brain/Active-Context.md` with what was changed, which files were modified, and the current status, and run `npm run brain:sync` to regenerate `brain/Code-Graph.md` and verify 0 broken `[[WikiLinks]]` and 0 orphan notes.
 4. **Rule 4 (Keep Notes Clean):** Use standard Markdown and Obsidian `[[WikiLinks]]` (e.g., `[[Architecture]]`) when linking between files inside `brain/`.
 
 ## Architectural Safeguards & Verification

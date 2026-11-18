@@ -19,7 +19,8 @@
     "typecheck": "tsc --noEmit",
     "netlify:sync": "tsx scripts/sync-netlify-drop.ts",
     "netlify:drop": "tsx scripts/sync-netlify-drop.ts --force",
-    "netlify:watch": "tsx scripts/sync-netlify-drop.ts --watch"
+    "netlify:watch": "tsx scripts/sync-netlify-drop.ts --watch",
+    "brain:sync": "tsx scripts/sync-brain-graph.ts"
   },
   "dependencies": {
     "@google/genai": "^1.0.0",
@@ -29,16 +30,12 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
-    "firebase": "^11.3.0",
-    "firebase-admin": "^13.1.0",
-    "firebase-functions": "^6.3.0",
     "helmet": "^8.0.0",
     "lucide-react": "^0.475.0",
     "motion": "^14.14.0",
     "pg": "^8.23.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tsx": "^4.19.2",
     "zod": "^3.24.2"
   },
   "devDependencies": {

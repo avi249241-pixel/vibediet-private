@@ -235,6 +235,7 @@ export const ProfileScreen: React.FC = () => {
   };
 
   const handleSimulateWebhook = async () => {
+    if (!import.meta.env.DEV) return;
     activatePro();
     try {
       const res = await fetch('/v1/billing/simulate-webhook', {
@@ -247,7 +248,7 @@ export const ProfileScreen: React.FC = () => {
       });
       if (res.ok) {
         const data = await res.json();
-        setBillingStatus(`✓ Pro Activated! HMAC-SHA256 signature verified (${data.transactionId})`);
+        setBillingStatus(`✓ Pro Activated (Dev Mode)! HMAC-SHA256 verified (${data.transactionId})`);
       }
     } catch (err: any) {
       setBillingStatus(`Simulation error: ${err?.message || err}`);
@@ -481,14 +482,16 @@ export const ProfileScreen: React.FC = () => {
               </button>
             </div>
 
-            <button
-              type="button"
-              onClick={handleSimulateWebhook}
-              data-testid="simulate-webhook-btn"
-              className="w-full py-1.5 rounded-xl apple-subcard bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.04] border border-[#10B981]/30 text-[#10B981] font-mono text-[11px] font-semibold transition cursor-pointer"
-            >
-              ⚡ Instant Pro Demo Activation
-            </button>
+            {import.meta.env.DEV && (
+              <button
+                type="button"
+                onClick={handleSimulateWebhook}
+                data-testid="simulate-webhook-btn"
+                className="w-full py-1.5 rounded-xl apple-subcard bg-slate-50 hover:bg-slate-100 dark:bg-white/[0.04] border border-[#10B981]/30 text-[#10B981] font-mono text-[11px] font-semibold transition cursor-pointer"
+              >
+                ⚡ Instant Pro Demo Activation (Dev Only)
+              </button>
+            )}
 
             {billingStatus && (
               <div className="text-[11px] text-[#10B981] apple-subcard bg-emerald-50 dark:bg-emerald-950/20 p-2.5 border border-[#10B981]/30 rounded-xl font-mono">

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import ReactDOM from 'react-dom';
 import { useDiet } from '../context/DietContext.js';
 import { useAuth } from '../context/AuthContext.js';
 import { ActiveTab } from './Navigation.js';
-import { COLOR_TOKENS, SPRING_PRESETS } from '../client/design-system/tokens.js';
 import { getAllPortionCalibrations } from '../services/portionMemory.js';
 
 interface CommandPaletteModalProps {
@@ -293,28 +292,17 @@ export const CommandPaletteModal: React.FC<CommandPaletteModalProps> = ({
     }
   }, [selectedIndex]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleGlobalEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleGlobalEscape);
-    return () => window.removeEventListener('keydown', handleGlobalEscape);
-  }, [isOpen, onClose]);
-
   if (!isOpen || typeof document === 'undefined') return null;
 
-  return createPortal(
+  return ReactDOM.createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div
-        className="fixed inset-0 z-0 bg-slate-950/65 backdrop-blur-md"
+        className="absolute inset-0 z-0 bg-slate-950/65 backdrop-blur-md"
         onClick={onClose}
         data-testid="command-palette-backdrop"
       />
       <div
-        className="relative z-10 w-full max-w-xl rounded-3xl border border-slate-200/80 dark:border-white/[0.12] overflow-hidden shadow-2xl flex flex-col max-h-[80vh] bg-white/95 dark:bg-[#121622]/95 backdrop-blur-2xl text-slate-900 dark:text-white"
+        className="relative z-10 w-full max-w-xl rounded-[28px] border border-slate-200/80 dark:border-white/15 overflow-hidden shadow-2xl flex flex-col max-h-[80vh] bg-white dark:bg-[#121622] text-slate-900 dark:text-white"
         data-testid="command-palette-modal"
       >
             {/* Search Input Bar */}

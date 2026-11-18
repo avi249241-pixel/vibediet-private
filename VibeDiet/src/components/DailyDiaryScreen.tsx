@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useDiet } from '../context/DietContext.js';
 import { EvidenceTier, FoodItemEntry, MealEntry, MealSlot as DomainMealSlot } from '../types/index.js';
-import { getLocalDateString } from '../utils/atwater.js';
+import { dateKey, deriveTargets } from '../utils/atwater.js';
 import { BarcodeScannerModal } from './BarcodeScannerModal.js';
 import VibeDietDashboard, {
   MealSlot,
@@ -66,11 +66,10 @@ export const DailyDiaryScreen: React.FC<DailyDiaryScreenProps> = ({
   const [barcodeTargetSlot, setBarcodeTargetSlot] = useState<DomainMealSlot | null>(null);
 
   const caloriesTarget = biometrics?.targetCalories || 2245;
-  const proteinTarget = biometrics?.targetProtein || 168;
-  const fatTarget = biometrics?.targetFat || 65;
-  const carbsTarget =
-    biometrics?.targetCarbs ||
-    Math.max(30, Math.round((caloriesTarget - proteinTarget * 4 - fatTarget * 9) / 4));
+  const derivedTargets = deriveTargets(caloriesTarget);
+  const proteinTarget = biometrics?.targetProtein || derivedTargets.protein;
+  const fatTarget = biometrics?.targetFat || derivedTargets.fat;
+  const carbsTarget = biometrics?.targetCarbs || derivedTargets.carbs;
 
   const hasMeals = (currentDay?.meals || []).length > 0;
 
@@ -135,10 +134,12 @@ export const DailyDiaryScreen: React.FC<DailyDiaryScreenProps> = ({
   };
 
   const handleNextDay = () => {
+    const todayLimit = dateKey();
+    if (selectedDate >= todayLimit) return;
     const [y, m, day] = selectedDate.split('-').map(Number);
     const d = new Date(y, m - 1, day + 1);
-    const nextDateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    setSelectedDate(nextDateStr);
+    const nextDateStr = dateKey(d);
+    setSelectedDate(nextDateStr > todayLimit ? todayLimit : nextDateStr);
   };
 
   const handleClearDay = () => {
@@ -174,10 +175,10 @@ export const DailyDiaryScreen: React.FC<DailyDiaryScreenProps> = ({
     addManualMeal(slot, title, items);
   };
 
-  const todayKey = getLocalDateString();
+  const todayKey = dateKey();
   const yesterdayObj = new Date();
   yesterdayObj.setDate(yesterdayObj.getDate() - 1);
-  const yesterdayKey = getLocalDateString(yesterdayObj);
+  const yesterdayKey = dateKey(yesterdayObj);
 
   let dateHeading = 'Today';
   if (selectedDate === todayKey) {
@@ -198,6 +199,7 @@ export const DailyDiaryScreen: React.FC<DailyDiaryScreenProps> = ({
     <>
       <VibeDietDashboard
         selectedDate={selectedDate}
+        maxDate={todayKey}
         onSelectDate={setSelectedDate}
         dateHeading={dateHeading}
         dateLabel={dateFormatted}

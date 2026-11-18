@@ -10,6 +10,9 @@ test-results/
 .data/
 .agents/
 *.log
+*.png
+!public/**/*.png
+!VibeDiet/public/**/*.png
 .DS_Store
 brain/.obsidian/
 .obsidian/

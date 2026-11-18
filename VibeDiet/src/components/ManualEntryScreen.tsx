@@ -3,7 +3,6 @@ import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext.js';
 import { useDiet } from '../context/DietContext.js';
 import { VERIFIED_USDA_FOODS } from '../data/mockData.js';
-import { LOCAL_VERIFIED_CATALOG } from '../services/foodCatalogService.js';
 import { reconcileAtwaterMacros } from '../utils/atwater.js';
 import { FoodItemEntry, MealSlot } from '../types/index.js';
 import { renderTierBadge } from './DailyDiaryScreen.js';
@@ -24,11 +23,6 @@ function getDefaultMealSlot(): MealSlot {
   return 'dinner';
 }
 
-const ALL_LOCAL_FOODS: FoodItemEntry[] = [
-  ...VERIFIED_USDA_FOODS,
-  ...LOCAL_VERIFIED_CATALOG,
-];
-
 export const ManualEntryScreen: React.FC<ManualEntryScreenProps> = ({
   onAdded,
   initialSlot,
@@ -37,9 +31,25 @@ export const ManualEntryScreen: React.FC<ManualEntryScreenProps> = ({
   const { addManualMeal } = useDiet();
   const [slot, setSlot] = useState<MealSlot>(() => initialSlot || getDefaultMealSlot());
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<FoodItemEntry[]>(ALL_LOCAL_FOODS);
+  const [localFoods, setLocalFoods] = useState<FoodItemEntry[]>(VERIFIED_USDA_FOODS);
+  const [searchResults, setSearchResults] = useState<FoodItemEntry[]>(VERIFIED_USDA_FOODS);
   const [isSearching, setIsSearching] = useState(false);
   const [isBarcodeOpen, setIsBarcodeOpen] = useState(false);
+
+  // Lazy-load the 1,848-line foodCatalogService on demand when /search mounts
+  useEffect(() => {
+    let active = true;
+    import('../services/foodCatalogService.js')
+      .then((mod) => {
+        if (active && Array.isArray(mod.LOCAL_VERIFIED_CATALOG)) {
+          setLocalFoods([...VERIFIED_USDA_FOODS, ...mod.LOCAL_VERIFIED_CATALOG]);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Debounced instant search (Local Verified IFCT/USDA + Live backend proxy)
   useEffect(() => {
@@ -47,7 +57,7 @@ export const ManualEntryScreen: React.FC<ManualEntryScreenProps> = ({
     const query = searchQuery.trim().toLowerCase();
 
     // Instant local filter first
-    const instantMatches = ALL_LOCAL_FOODS.filter(
+    const instantMatches = localFoods.filter(
       (f) =>
         !query ||
         f.name.toLowerCase().includes(query) ||
@@ -86,7 +96,7 @@ export const ManualEntryScreen: React.FC<ManualEntryScreenProps> = ({
       active = false;
       clearTimeout(timer);
     };
-  }, [searchQuery, token]);
+  }, [searchQuery, token, localFoods]);
 
   const handleBarcodeDetected = (food: FoodItemEntry) => {
     addManualMeal(slot, food.name, [food]);

@@ -98,37 +98,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }));
   };
 
+  const [adminToken, setAdminToken] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return window.localStorage.getItem('vibediet_admin_token') || '';
+    }
+    return '';
+  });
+
   const loginAdmin = (passphraseOrToken: string): boolean => {
     const clean = passphraseOrToken.trim();
-    if (!clean) return false;
-
-    // Verify token: in development/test allows explicit admin-token; in production requires valid token
-    const isTestOrDev = typeof window !== 'undefined' && (
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname === 'localhost' ||
-      clean.length >= 16
-    );
-
-    if (isTestOrDev && (clean === 'admin-token' || clean.length >= 16)) {
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('vibediet_admin_token', clean);
-      }
-      setUser((prev) => ({
-        ...prev,
-        uid: 'admin-local-uid',
-        displayName: 'Administrator (Verified)',
-        email: 'admin@vibediet.app',
-        isAdmin: true,
-      }));
-      return true;
+    // Reject short strings and forbidden backdoor prefixes; require >=16-char secret or signed JWT
+    if (
+      clean.length < 16 ||
+      clean.startsWith('AIza') ||
+      clean.startsWith('AQ.')
+    ) {
+      return false;
     }
-    return false;
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('vibediet_admin_token', clean);
+    }
+    setAdminToken(clean);
+    setUser((prev) => ({
+      ...prev,
+      uid: 'admin-verified-uid',
+      displayName: 'Administrator (Verified)',
+      email: 'admin@vibediet.app',
+      isAdmin: true,
+    }));
+    return true;
   };
 
   const logoutAdmin = () => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('vibediet_admin_token');
     }
+    setAdminToken('');
     setUser((prev) => ({
       ...prev,
       isAdmin: false,
@@ -139,7 +145,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         user,
-        token: user.isAdmin ? 'admin-token' : `uid:${user.uid}`,
+        token: user.isAdmin && adminToken ? adminToken : `uid:${user.uid}`,
         cockpitMode,
         setCockpitMode,
         signInWithGoogleDemo,

@@ -203,7 +203,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
   };
 
   const handleRemoveKey = async (slotId: string) => {
-    if (!confirm(`Are you sure you want to remove ${slotId} from pool and .env?`)) {
+    if (!confirm(`Are you sure you want to remove ${slotId} from the encrypted database key pool?`)) {
       return;
     }
     try {
@@ -321,7 +321,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
                 type="password"
                 value={passphraseInput}
                 onChange={(e) => setPassphraseInput(e.target.value)}
-                placeholder="Enter admin token (e.g. admin-token)..."
+                placeholder="Enter signed admin token (ADMIN_ACCESS_TOKEN)..."
                 data-testid="admin-passphrase-input"
                 className="w-full bg-black/60 border border-zinc-700 focus:border-emerald-400 rounded-xl px-4 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none font-mono transition"
               />
@@ -405,7 +405,7 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
   const currentOrigin = typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : 'http://127.0.0.1:3000';
 
   return (
-    <div className="space-y-6 pb-36 sm:pb-24 overflow-x-hidden w-full max-w-full select-none" data-testid="admin-cockpit-screen">
+    <div className="space-y-6 pb-24 pr-36 overflow-x-hidden w-full max-w-full select-none" data-testid="admin-cockpit-screen">
       {/* Linear / Vercel Ops Console Top Navigation Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#0E0E11] border border-white/[0.08] rounded-2xl p-4 shadow-2xl backdrop-blur-xl">
         <div className="flex flex-wrap items-center gap-3">
@@ -596,10 +596,10 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-3">
         <h3 className="text-sm font-bold text-white flex items-center gap-2">
           <Plus className="w-4 h-4 text-emerald-400" />
-          <span>Add Gemini API Keys to Pool &amp; .env</span>
+          <span>Add Gemini API Keys to Encrypted DB Key Pool</span>
         </h3>
         <p className="text-xs text-slate-400">
-          Paste one or more keys (comma-separated). Keys starting with <code>AIza...</code> or <code>AQ....</code> are automatically validated, added to memory rotation, and written to <code>.env</code>.
+          Paste one or more keys (comma-separated). Keys are masked, validated, added to round-robin rotation, and persisted to the encrypted PostgreSQL <code>vibe_key_pool</code> table.
         </p>
         <form onSubmit={handleAddKeys} className="flex flex-col sm:flex-row gap-2.5" data-testid="add-keys-form">
           <input

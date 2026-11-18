@@ -259,12 +259,12 @@ export default function VibeDietAiScannerView({
       : "border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.1)] text-[#B45309]";
 
   return (
-    <div className="vibediet-canvas px-4 py-6 pb-36 sm:px-6 sm:py-8 lg:px-8 select-none" data-testid="photo-log-screen">
+    <div className="vibediet-canvas px-4 pt-6 pb-36 sm:px-6 sm:pt-8 sm:pb-36 lg:px-8 select-none" data-testid="photo-log-screen">
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 230, damping: 26 }}
-        className="apple-card mx-auto max-w-[1240px] p-5 sm:p-7 lg:p-8"
+        className="apple-card bg-white/65 dark:bg-slate-900/55 backdrop-blur-2xl border border-white/75 dark:border-white/12 rounded-[28px] shadow-[0_12px_40px_-12px_rgba(15,23,42,0.10)] dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.55)] mx-auto max-w-[1240px] p-5 sm:p-7 lg:p-8"
         aria-labelledby="ai-scanner-title"
       >
         <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">

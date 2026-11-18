@@ -29,33 +29,6 @@ const tabs: NavTabItem[] = [
   { id: "Profile", testId: "nav-tab-profile", label: "Profile", icon: "👤" },
 ];
 
-function SunIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px] text-slate-700 dark:text-amber-300" aria-hidden="true">
-      <circle cx="12" cy="12" r="3.75" stroke="currentColor" strokeWidth="1.8" />
-      <path
-        d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.72 5.28l-1.42 1.42M6.7 17.3l-1.42 1.42M18.72 18.72l-1.42-1.42M6.7 6.7 5.28 5.28"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-[18px] w-[18px] text-slate-700 dark:text-amber-300" aria-hidden="true">
-      <path
-        d="M20.25 15.1A8.5 8.5 0 0 1 8.9 3.75 8.5 8.5 0 1 0 20.25 15.1Z"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function BrandMark() {
   return (
     <div className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-[12px] bg-gradient-to-br from-[#FF6B2C] to-[#FF9248] shadow-[0_7px_18px_-6px_rgba(255,107,44,0.7)]">
@@ -87,18 +60,6 @@ export default function VibeDietNavbar({
   isDark = false,
   onToggleTheme,
 }: VibeDietNavbarProps) {
-  useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        onOpenCommandPalette?.();
-      }
-    };
-
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, [onOpenCommandPalette]);
-
   const [isOnline, setIsOnline] = React.useState<boolean>(() => {
     return typeof navigator !== 'undefined' ? navigator.onLine : true;
   });
@@ -241,9 +202,9 @@ export default function VibeDietNavbar({
             title={isDark ? "Switch to light theme" : "Switch to dark theme"}
           >
             {isDark ? (
-              <Sun className="h-4 w-4 text-amber-400" />
+              <Sun className="h-4 w-4 text-amber-400" strokeWidth={2.2} />
             ) : (
-              <Moon className="h-4 w-4 text-slate-700" />
+              <Moon className="h-4 w-4 text-slate-700" strokeWidth={2.2} />
             )}
           </button>
 
