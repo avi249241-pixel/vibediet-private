@@ -19,6 +19,9 @@ Strip-to-Core, P0 Security Hardening & UTC/Math Parity Complete:
 - `tests/macroReconciliation.test.ts`, `tests/authMiddleware.test.ts`, `tests/adminEndpoints.test.ts`, `e2e/final-regression.spec.ts`: Security + math + E2E verification suites.
 
 ## Recent Changes
+- **Cleaned Environment Architecture & Secrets Isolated:** Backed up legacy `.env` to `.env.bak` (git-ignored secret archive); rebuilt `VibeDiet/.env` and `.env.example` with clean 6-section schema; generated 32-char crypto `ADMIN_ACCESS_TOKEN`.
+- **Netlify Environment Synced:** Pushed production environment variables (`ADMIN_ACCESS_TOKEN`, `USDA_FDC_API_KEY`, `OPEN_FOOD_FACTS_USER_AGENT`) directly to Netlify production (`vibediet-app`).
+- **Playwright ESM Dynamic Env Hydration:** Updated `playwright.config.ts` with Node ESM `dotenv` loading so local runs read from `.env` while falling back to safe defaults in CI.
 - **CI Pipeline & Working Directory Hardened:** Updated `.github/workflows/ci.yml` with `defaults.run.working-directory: VibeDiet`, `cache-dependency-path: VibeDiet/package-lock.json`, and `ADMIN_ACCESS_TOKEN`. Fixed failure artifact upload paths.
 - **E2E Playwright Suite Synced with Auth Gate:** Updated `m2-final-production-readiness.spec.ts`, `vibediet.spec.ts`, `stream3-velocity-solver.spec.ts`, `m1-challenger-stress.spec.ts`, and `m1-challenger-empirical.spec.ts` to seamlessly handle the P0 admin gate using `ADMIN_ACCESS_TOKEN`.
 - **P0 Auth & Billing Hardened:** Removed all magic backdoor tokens, enforced timing-safe `ADMIN_ACCESS_TOKEN` / signed JWT verification, required HMAC signatures on billing webhooks, gated dev-only Pro activation.

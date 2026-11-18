@@ -1,4 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load local VibeDiet/.env if present, with safe fallback for CI
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 export default defineConfig({
   testDir: './e2e',
@@ -38,7 +47,7 @@ export default defineConfig({
     timeout: 30000,
     env: {
       VIBEDIET_DATA_DIR: '.tmp-playwright-data',
-      ADMIN_ACCESS_TOKEN: 'dummy_admin_secret_token_gate_pass_ci',
+      ADMIN_ACCESS_TOKEN: process.env.ADMIN_ACCESS_TOKEN || 'dummy_admin_secret_token_gate_pass_ci',
     },
   },
 });
