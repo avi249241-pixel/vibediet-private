@@ -94,6 +94,12 @@ test.describe('Stream 3: UX Velocity Engine & Smart Macro Solver Verification', 
 
     // 5.3 Dedicated Backend Admin Route
     await page.goto('/#admin');
+    await page.waitForSelector('[data-testid="admin-auth-gate"], [data-testid="admin-cockpit-screen"]', { timeout: 10000 });
+    const gate = page.locator('[data-testid="admin-auth-gate"]');
+    if (await gate.isVisible()) {
+      await page.locator('[data-testid="admin-passphrase-input"]').fill(process.env.ADMIN_ACCESS_TOKEN || 'dummy_admin_secret_token_gate_pass_ci');
+      await page.locator('[data-testid="admin-authorize-btn"]').click();
+    }
     await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
     await page.screenshot({ path: 'dist/screenshot-admin-console.png', fullPage: true });
   });

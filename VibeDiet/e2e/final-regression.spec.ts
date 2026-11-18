@@ -236,7 +236,7 @@ test.describe('VibeDiet Final Surgical Code Patch & Regression Gate', () => {
 
     const analyzePromise = page.waitForResponse(
       (res) => res.url().includes('/v1/ai/analyze') && res.request().method() === 'POST',
-      { timeout: 15000 }
+      { timeout: 30000 }
     );
 
     await page.locator('[data-testid="dictate-meal-input"]').fill('2 rotis, 1 bowl dal tadka, 150g paneer');

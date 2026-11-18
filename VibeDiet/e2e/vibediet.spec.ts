@@ -37,21 +37,31 @@ test.describe('VibeDiet End-to-End Browser Verification (6 Core Journeys)', () =
   });
 
   test('5. Backend Admin Console route (/admin or #admin) isolates telemetry and key pool controls', async ({ page }) => {
+    const unlockGateIfPresent = async () => {
+      await page.waitForSelector('[data-testid="admin-auth-gate"], [data-testid="admin-cockpit-screen"]', { timeout: 10000 });
+      const gate = page.locator('[data-testid="admin-auth-gate"]');
+      if (await gate.isVisible()) {
+        await page.locator('[data-testid="admin-passphrase-input"]').fill(process.env.ADMIN_ACCESS_TOKEN || 'dummy_admin_secret_token_gate_pass_ci');
+        await page.locator('[data-testid="admin-authorize-btn"]').click();
+      }
+      await page.waitForSelector('[data-testid="admin-cockpit-screen"]', { timeout: 10000 });
+    };
+
     await page.goto('/#admin');
-    await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
+    await unlockGateIfPresent();
     await page.getByTestId('trigger-sweeper-btn').click();
     await page.getByTestId('nav-tab-diary').click();
     await expect(page.getByTestId('daily-diary-screen')).toBeVisible();
 
     // Also verify direct /admin path and clean back navigation
     await page.goto('/admin');
-    await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
+    await unlockGateIfPresent();
     await page.getByTestId('nav-tab-diary').click();
     await expect(page.getByTestId('daily-diary-screen')).toBeVisible();
 
     // Also verify subtle dev trigger if needed
     await page.getByTestId('nav-tab-admin').click();
-    await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
+    await unlockGateIfPresent();
     await page.getByTestId('nav-tab-diary').click();
     await expect(page.getByTestId('daily-diary-screen')).toBeVisible();
   });

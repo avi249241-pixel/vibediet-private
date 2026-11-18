@@ -1,5 +1,15 @@
 import { test, expect } from '@playwright/test';
 
+async function unlockAdminGate(page: any) {
+  await page.waitForSelector('[data-testid="admin-auth-gate"], [data-testid="admin-cockpit-screen"]', { timeout: 10000 });
+  const gate = page.locator('[data-testid="admin-auth-gate"]');
+  if (await gate.isVisible()) {
+    await page.locator('[data-testid="admin-passphrase-input"]').fill(process.env.ADMIN_ACCESS_TOKEN || 'dummy_admin_secret_token_gate_pass_ci');
+    await page.locator('[data-testid="admin-authorize-btn"]').click();
+  }
+  await page.waitForSelector('[data-testid="admin-cockpit-screen"]', { timeout: 10000 });
+}
+
 test.describe('Milestone 1 Adversarial Challenge & Stress Suite', () => {
 
   test('CHALLENGE 1: Telemetry Zero-Leakage & Consumer Header Integrity', async ({ page }) => {
@@ -56,6 +66,7 @@ test.describe('Milestone 1 Adversarial Challenge & Stress Suite', () => {
   test('CHALLENGE 2: Dedicated /admin Route Isolation & Return Round-Trip', async ({ page }) => {
     // Direct navigation to /admin
     await page.goto('/admin');
+    await unlockAdminGate(page);
     await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
 
     // Verify complete absence of consumer chrome in admin mode
@@ -88,6 +99,7 @@ test.describe('Milestone 1 Adversarial Challenge & Stress Suite', () => {
 
   test('CHALLENGE 3: Dedicated /#admin Hash Route Isolation & Return', async ({ page }) => {
     await page.goto('/#admin');
+    await unlockAdminGate(page);
     await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
 
     // Consumer chrome must NOT be attached
@@ -115,6 +127,7 @@ test.describe('Milestone 1 Adversarial Challenge & Stress Suite', () => {
 
     // Subpath /admin/ with trailing slash
     await page.goto('/admin/');
+    await unlockAdminGate(page);
     await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
     await expect(page.locator('header')).not.toBeAttached();
   });
@@ -122,6 +135,7 @@ test.describe('Milestone 1 Adversarial Challenge & Stress Suite', () => {
   test('CHALLENGE 4B: Query Parameter (?admin=1) Route Isolation & Return', async ({ page }) => {
     // Query param ?admin=1
     await page.goto('/?admin=1');
+    await unlockAdminGate(page);
     await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
     await expect(page.locator('header')).not.toBeAttached();
 
@@ -136,6 +150,7 @@ test.describe('Milestone 1 Adversarial Challenge & Stress Suite', () => {
 
     // Navigate to admin via footer trigger
     await page.getByTestId('nav-tab-admin').click();
+    await unlockAdminGate(page);
     await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
     await expect(page.locator('header')).not.toBeAttached();
 
@@ -147,6 +162,7 @@ test.describe('Milestone 1 Adversarial Challenge & Stress Suite', () => {
 
     // Browser Forward
     await page.goForward();
+    await unlockAdminGate(page);
     await expect(page.getByTestId('admin-cockpit-screen')).toBeVisible();
     await expect(page.locator('header')).not.toBeAttached();
 

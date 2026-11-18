@@ -15,4 +15,8 @@ test-results/
 !VibeDiet/public/**/*.png
 .DS_Store
 brain/.obsidian/
+logs/
+*.ndjson
 .obsidian/
+logs/
+*.ndjson

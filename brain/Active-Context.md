@@ -19,6 +19,8 @@ Strip-to-Core, P0 Security Hardening & UTC/Math Parity Complete:
 - `tests/macroReconciliation.test.ts`, `tests/authMiddleware.test.ts`, `tests/adminEndpoints.test.ts`, `e2e/final-regression.spec.ts`: Security + math + E2E verification suites.
 
 ## Recent Changes
+- **CI Pipeline & Working Directory Hardened:** Updated `.github/workflows/ci.yml` with `defaults.run.working-directory: VibeDiet`, `cache-dependency-path: VibeDiet/package-lock.json`, and `ADMIN_ACCESS_TOKEN`. Fixed failure artifact upload paths.
+- **E2E Playwright Suite Synced with Auth Gate:** Updated `m2-final-production-readiness.spec.ts`, `vibediet.spec.ts`, `stream3-velocity-solver.spec.ts`, `m1-challenger-stress.spec.ts`, and `m1-challenger-empirical.spec.ts` to seamlessly handle the P0 admin gate using `ADMIN_ACCESS_TOKEN`.
 - **P0 Auth & Billing Hardened:** Removed all magic backdoor tokens, enforced timing-safe `ADMIN_ACCESS_TOKEN` / signed JWT verification, required HMAC signatures on billing webhooks, gated dev-only Pro activation.
 - **Repository Decluttered:** Deleted 20+ unused configs/screenshots/scripts, pruned unused Firebase deps, unified `brain/` at repo root, and code-split `foodCatalogService.ts`.
 - **Exact Macro & Local Date Physics:** Shipped `deriveTargets()` (`4P + 4C + 9F === kcal`) and `dateKey()` with unit tests and future-date navigation clamp.

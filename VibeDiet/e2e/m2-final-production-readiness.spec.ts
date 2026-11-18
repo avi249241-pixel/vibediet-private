@@ -101,6 +101,12 @@ test.describe('VibeDiet Phase 5: Production Readiness & Verification Gate', () =
   test('5. Admin Console: Auth Gate, Ping Live Swarm, Support Inbox & Audit Trail', async ({ page }) => {
     // 5a. Navigate to /admin directly
     await page.goto('/admin');
+    await page.waitForSelector('[data-testid="admin-auth-gate"], [data-testid="admin-cockpit-screen"]', { timeout: 10000 });
+    const gate = page.locator('[data-testid="admin-auth-gate"]');
+    if (await gate.isVisible()) {
+      await page.locator('[data-testid="admin-passphrase-input"]').fill(process.env.ADMIN_ACCESS_TOKEN || 'dummy_admin_secret_token_gate_pass_ci');
+      await page.locator('[data-testid="admin-authorize-btn"]').click();
+    }
     await page.waitForSelector('[data-testid="admin-cockpit-screen"]', { timeout: 10000 });
 
     // 5b. Verify Ping Live Gemini Swarm button exists

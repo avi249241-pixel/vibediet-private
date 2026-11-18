@@ -38,6 +38,7 @@ export default defineConfig({
     timeout: 30000,
     env: {
       VIBEDIET_DATA_DIR: '.tmp-playwright-data',
+      ADMIN_ACCESS_TOKEN: 'dummy_admin_secret_token_gate_pass_ci',
     },
   },
 });
