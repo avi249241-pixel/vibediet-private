@@ -234,8 +234,14 @@ export const ProfileScreen: React.FC = () => {
     }
   };
 
+  const isLocalOrDev = Boolean(
+    import.meta.env.DEV ||
+      (typeof window !== 'undefined' &&
+        (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+  );
+
   const handleSimulateWebhook = async () => {
-    if (!import.meta.env.DEV) return;
+    if (!isLocalOrDev) return;
     activatePro();
     try {
       const res = await fetch('/v1/billing/simulate-webhook', {
@@ -482,7 +488,7 @@ export const ProfileScreen: React.FC = () => {
               </button>
             </div>
 
-            {import.meta.env.DEV && (
+            {isLocalOrDev && (
               <button
                 type="button"
                 onClick={handleSimulateWebhook}

@@ -123,7 +123,8 @@ const VibeDietShell: React.FC = () => {
             window.location.hash = '';
           }
           const targetRoute = tabToRoute[tab] || '/today';
-          if (window.location.pathname !== targetRoute) {
+          const isAlreadyAtDiary = tab === 'diary' && (window.location.pathname === '/' || window.location.pathname === '/today');
+          if (!isAlreadyAtDiary && window.location.pathname !== targetRoute) {
             window.history.pushState(null, '', targetRoute);
           }
         }

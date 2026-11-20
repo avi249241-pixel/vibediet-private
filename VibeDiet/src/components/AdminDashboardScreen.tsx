@@ -416,14 +416,12 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({
             className="px-3.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-zinc-200 hover:text-white border border-white/[0.08] text-xs font-semibold transition flex items-center gap-2 shadow-sm"
             title="Return to VibeDiet Consumer App"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Open Consumer App ({currentHost})</span>
+            <span>← Open Consumer App ({currentHost})</span>
           </button>
           <span className="text-zinc-600 hidden sm:inline">|</span>
           <div className="flex items-center gap-2">
             <h1 className="text-xs font-mono font-bold tracking-wider text-zinc-300 uppercase flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-400" />
-              <span>VibeDiet Backend Engine &amp; Key Pool Console</span>
+              <span>⚡ VibeDiet Backend Engine &amp; Key Pool Console</span>
             </h1>
             <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-white/[0.04] text-zinc-400 border border-white/[0.06]">
               {currentOrigin}/admin
