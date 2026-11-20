@@ -931,7 +931,7 @@ v1Router.post(
             return resp.text || 'PONG';
           } catch (innerErr: any) {
             const resp = await ai.models.generateContent({
-              model: 'gemini-2.0-flash',
+              model: 'gemini-2.5-flash',
               contents: 'Respond with exactly: PONG',
             });
             return resp.text || 'PONG';

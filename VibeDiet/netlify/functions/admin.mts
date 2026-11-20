@@ -155,7 +155,7 @@ export default async function handler(req: Request, _context: Context): Promise<
         models: {
           vision: 'gemini-2.5-flash',
           fast: 'gemini-2.5-flash',
-          lite: 'gemini-2.5-flash',
+          lite: 'gemini-2.5-flash-lite',
           swarm: ['gemini-2.5-flash', 'gemini-2.5-pro'],
         },
       },

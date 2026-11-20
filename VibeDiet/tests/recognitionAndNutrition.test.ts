@@ -113,7 +113,7 @@ describe('4-Tier Nutrition Evidence & 50-Key Gemini Swarm Router', () => {
     const modelExecutionLog: string[] = [];
 
     const result = await router.executeWithModelFallback(
-      ['gemini-2.5-flash', 'gemini-2.0-flash'],
+      ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
       async (key, model) => {
         modelExecutionLog.push(`${model}:${key}`);
         if (model === 'gemini-2.5-flash') {
@@ -126,9 +126,9 @@ describe('4-Tier Nutrition Evidence & 50-Key Gemini Swarm Router', () => {
       }
     );
 
-    expect(result).toContain('success-on-gemini-2.0-flash');
+    expect(result).toContain('success-on-gemini-2.5-flash-lite');
     expect(modelExecutionLog.some((l) => l.startsWith('gemini-2.5-flash:'))).toBe(true);
-    expect(modelExecutionLog.some((l) => l.startsWith('gemini-2.0-flash:'))).toBe(true);
+    expect(modelExecutionLog.some((l) => l.startsWith('gemini-2.5-flash-lite:'))).toBe(true);
   });
 
   it('provisions new project key via GCP API hook when activeKeys <= 1 and env is configured', async () => {

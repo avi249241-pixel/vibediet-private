@@ -1,5 +1,11 @@
+import 'dotenv/config';
 import v1Handler from '../netlify/functions/v1.mts';
 import adminHandler from '../netlify/functions/admin.mts';
+
+// Ensure a valid minimum-length admin token for test execution
+if (!process.env.ADMIN_ACCESS_TOKEN || process.env.ADMIN_ACCESS_TOKEN.length < 16) {
+  process.env.ADMIN_ACCESS_TOKEN = 'dummy_admin_secret_token_gate_pass_ci';
+}
 
 async function runTests() {
   console.log('🚀 Running Comprehensive Netlify Functions Verification...\n');
@@ -197,16 +203,25 @@ async function runTests() {
     assert(false, 'Support endpoints threw error', err.message);
   }
 
-  // 8. GET /v1/admin/overview
+  // 8. GET /v1/admin/overview (Zero-Trust Security Gate: 401 unauthenticated, 200 with valid admin token)
   try {
-    const req = new Request('https://vibediet.app/v1/admin/overview', {
+    const unauthReq = new Request('https://vibediet.app/v1/admin/overview', {
       method: 'GET',
     });
-    const res = await adminHandler(req, context);
-    const data = await res.json();
-    assert(res.status === 200, 'GET /v1/admin/overview returns 200');
-    assert(data.system && data.keyPool && Array.isArray(data.keySlots), 'GET /v1/admin/overview returns valid schema');
-    assert(typeof data.system.rssMb === 'number', 'GET /v1/admin/overview reports RSS memory');
+    const unauthRes = await adminHandler(unauthReq, context);
+    assert(unauthRes.status === 401, 'GET /v1/admin/overview denies unauthenticated requests (401)');
+
+    const authReq = new Request('https://vibediet.app/v1/admin/overview', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${process.env.ADMIN_ACCESS_TOKEN}`,
+      },
+    });
+    const authRes = await adminHandler(authReq, context);
+    const authData = await authRes.json();
+    assert(authRes.status === 200, 'GET /v1/admin/overview returns 200 with valid admin token');
+    assert(authData.system && authData.keyPool && Array.isArray(authData.keySlots), 'GET /v1/admin/overview returns valid schema');
+    assert(typeof authData.system.rssMb === 'number', 'GET /v1/admin/overview reports RSS memory');
   } catch (err: any) {
     assert(false, 'Admin overview threw error', err.message);
   }

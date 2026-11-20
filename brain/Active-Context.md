@@ -19,6 +19,9 @@ Strip-to-Core, P0 Security Hardening & UTC/Math Parity Complete:
 - `tests/macroReconciliation.test.ts`, `tests/authMiddleware.test.ts`, `tests/adminEndpoints.test.ts`, `e2e/final-regression.spec.ts`: Security + math + E2E verification suites.
 
 ## Recent Changes
+- **CI Pipeline & Netlify Functions Verification:** Hardened `.github/workflows/ci.yml` with `defaults.run.working-directory: VibeDiet`, `cache-dependency-path`, `ADMIN_ACCESS_TOKEN`, and `VITE_SUPABASE_*` env flags. Fixed Netlify functions test script (`scripts/test-netlify-functions.ts`) to verify Zero-Trust 401 gate and 200 admin overview (24/24 tests passing).
+- **Gemini Model Modernization & Deprecation Removal:** Replaced all deprecated `gemini-2.0-flash` models with `gemini-2.5-flash-lite` across `geminiNutritionSwarm.ts`, `keyPoolRouter.ts`, `v1.ts`, `admin.mts`, and unit test mocks.
+- **Vite Bundle Optimization & Vendor Splitting:** Implemented `manualChunks` in `vite.config.ts` splitting React, Motion, Lucide, and Supabase dependencies into distinct vendor chunks, shrinking main bundle by 43% (817 kB -> 465 kB) and eliminating Vite chunk size build warnings.
 - **Cleaned Environment Architecture & Secrets Isolated:** Backed up legacy `.env` to `.env.bak` (git-ignored secret archive); rebuilt `VibeDiet/.env` and `.env.example` with clean 6-section schema; generated 32-char crypto `ADMIN_ACCESS_TOKEN`.
 - **Netlify Environment Synced:** Pushed production environment variables (`ADMIN_ACCESS_TOKEN`, `USDA_FDC_API_KEY`, `OPEN_FOOD_FACTS_USER_AGENT`) directly to Netlify production (`vibediet-app`).
 - **Playwright ESM Dynamic Env Hydration:** Updated `playwright.config.ts` with Node ESM `dotenv` loading so local runs read from `.env` while falling back to safe defaults in CI.

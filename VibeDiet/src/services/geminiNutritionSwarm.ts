@@ -13,10 +13,10 @@ export const SWARM_MODELS = {
 } as const;
 
 export const SWARM_FALLBACK_MODELS = {
-  agent1: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
-  agent2: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
-  agent3: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
-  text: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'],
+  agent1: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'],
+  agent2: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'],
+  agent3: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'],
+  text: ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.5-flash-lite'],
 } as const;
 
 export const SWARM_ACTIVE_MODELS = [

@@ -16,6 +16,17 @@ export default defineConfig({
     emptyOutDir: false,
     sourcemap: false,
     target: 'es2022',
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-motion': ['motion'],
+          'vendor-lucide': ['lucide-react'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        },
+      },
+    },
   },
   test: {
     include: ['tests/**/*.test.ts'],

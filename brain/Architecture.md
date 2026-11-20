@@ -17,7 +17,7 @@ flowchart LR
   UI["UI Views: Today / AI Scan / Search / Coach / Profile"] --> DC["DietContext + AuthContext"]
   DC --> API["Serverless API: /v1/ai/analyze, /v1/meals, /v1/foods, /v1/weights, /v1/support"]
   API --> KPR["KeyPoolRouter (8-slot 429 cooldown)"]
-  KPR --> SWARM["Gemini Swarm (2.5-flash -> 2.5-pro -> 2.0-flash)"]
+  KPR --> SWARM["Gemini Swarm (2.5-flash -> 2.5-pro -> 2.5-flash-lite)"]
   SWARM --> ATW["Atwater 4-4-9-7 Verifier"]
   API --> CAT["FoodCatalogService (USDA + Open Food Facts)"]
   CAT --> ATW
