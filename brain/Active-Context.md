@@ -5,18 +5,32 @@
 Linked: [[00-Home]] | [[Architecture]] | [[Code-Graph]] | [[DietContext]] | [[Serverless-API]] | [[PostgreSQL-Schema]] | [[AI-Meal-Scan]] | [[Admin-Console]] | [[Profile-and-Support]]
 
 ## Current Focus
-Strip-to-Core, P0 Security Hardening & UTC/Math Parity Complete:
-1. **P0 Security Hardening:** Eliminated all `'admin-token'`, `'guest-non-admin-token'`, `AIza*`, and `AQ.*` backdoors across `netlify/functions/admin.mts`, `src/middleware/auth.ts`, `src/context/AuthContext.tsx`, and `src/components/AdminDashboardScreen.tsx`. Admin routes strictly verify timing-safe `ADMIN_ACCESS_TOKEN` or cryptographically signed HMAC-SHA256 / Supabase HS256 JWTs (`app_metadata.role === 'admin'`). Gated Instant Pro Demo Activation behind `import.meta.env.DEV` and enforced mandatory HMAC signatures on Razorpay/Stripe webhooks.
-2. **Bloat Stripped & Single Unified `brain/`:** Removed `firebase`, `firebase-admin`, `firebase-functions`, duplicate `tsx` from `dependencies` (keeping `@supabase/supabase-js`); deleted unused multi-cloud configs (`Dockerfile`, `.dockerignore`, `railway.json`, `render.yaml`, `cloudbuild.yaml`, `firebase.json`), 18 committed `.png` screenshots, 5 one-off capture/audit scripts, and duplicate `VibeDiet/brain/`. Lazy-loaded `foodCatalogService.ts` in `ManualEntryScreen.tsx`. Preserved `firestore.rules`, `LEGAL.md`, `build-singlefile.ts`, and `sync-netlify-drop.ts` per `AGENTS.md` Rules 5, 9, and 10.
-3. **UTC Date, Future-Date Clamp, `deriveTargets()` & Honest AI Errors:** Added `dateKey()` and exact 0-kcal-discrepancy `deriveTargets()` (`4*P + 4*C + 9*F === calorieTarget`) in `atwater.ts`, replaced UTC `toISOString().split('T')[0]` in `dataStore.ts`/`mockFirestore.ts`, clamped navigation at Today, removed `1750` hydration sentinels, wired honest `POST /v1/meals/photo` & `POST /v1/meals/parse` (503/502 on missing/failed Gemini keys), and replaced fake ping latency in `admin.mts` with HTTP 503 when `GEMINI_API_KEY` is missing.
+Stage 2: Swappable VisionEngine Architecture & Edge-Native Razorpay Billing Complete:
+1. **Vision Perception Subsystem (`src/vision/`)**: Decoupled visual meal identification and portion/cooking analysis from nutritional ground truth. `CloudStructuredVisionEngine` uses a flat, concise schema with `gemini-2.5-flash` strictly identifying dishes, estimating portion mass anchored to scale references, cooking methods, and surface oil/ghee sheen (zero calorie/macro hallucination). `OnDeviceWasmVisionEngine` adapter interface ready for hot-swapping quantized `.onnx` models via OPFS model caching.
+2. **Deterministic Nutrition Resolver (`src/vision/nutritionResolver.ts`) & 0ms Recalculation**: Grounded visual items against `LOCAL_VERIFIED_CATALOG` (IFCT 2017 & USDA SR Legacy), deterministically adding cooking-oil fat grams (`none`: 0g, `light`: 2.5g, `standard`: 5.0g, `heavy`: 10.0g) and reconciling macros strictly via Atwater physics (`4P + 4C + 9F === kcal`). Provided client-side `recalculateItemNutrition()` helper executing in <1ms without network calls.
+3. **Edge-Native Razorpay Billing & Freemium Gate (`src/worker/routes/billing.ts` + UI)**: Built edge-native endpoints using pure Web Fetch API and Web Crypto HMAC-SHA256 (`/v1/billing/create-order`, `/v1/billing/verify`, `/v1/billing/webhook`). Defined authoritative server-side plans (`pro_monthly`: 14900 paise = ₹149, `pro_annual`: 99900 paise = ₹999). Wired clean Freemium tier gating (Free: 3 AI meal scans/day + full manual/barcode tracking; Pro: unlimited AI scans + adaptive TDEE coaching). Created `ProUpgradeModal.tsx` and integrated it into `ProfileScreen.tsx` (preserving `isLocalOrDev` E2E trigger).
+4. **Verification & Testing (`tests/stage2VisionAndBilling.test.ts` & `tests/stage2Vision.test.ts`)**: 23/23 Stage 2 unit tests passing (149/149 suite total). Zero TypeScript errors (`npx tsc --noEmit`), production bundle built, and 0 leaked secrets.
 
 ## Active Files (Read/Edit Only These)
 - `AGENTS.md`: Strict agent operational rules & safeguards.
 - `brain/00-Home.md`, `brain/Architecture.md`, `brain/Active-Context.md`, `brain/Code-Graph.md`: Single unified root Obsidian vault.
-- `netlify/functions/admin.mts` & `netlify/functions/v1.mts`: Zero-trust admin auth, honest 503 ping, `/v1/meals/photo`, `/v1/meals/parse`, `/v1/ai/analyze`.
-- `src/middleware/auth.ts`, `src/context/AuthContext.tsx`, `src/components/AdminDashboardScreen.tsx`, `src/components/ProfileScreen.tsx`: P0 security fixes & dev-only Pro demo gate.
-- `src/shared/physics/atwater.ts`, `src/lib/dataStore.ts`, `src/lib/mockFirestore.ts`, `src/context/DietContext.tsx`, `src/components/DailyDiaryScreen.tsx`, `src/components/redesign/VibeDietDashboard.tsx`, `src/components/ManualEntryScreen.tsx`: `dateKey()`, `deriveTargets()`, future-date clamp, lazy catalog loading.
-- `tests/macroReconciliation.test.ts`, `tests/authMiddleware.test.ts`, `tests/adminEndpoints.test.ts`, `e2e/final-regression.spec.ts`: Security + math + E2E verification suites.
+- `src/vision/types.ts`: `VisionEngine`, `DetectedFoodItem`, `CookingMethod`, `OilLevel`, `OIL_FAT_GRAMS_MAP`, `ResolvedFoodItem`.
+- `src/vision/cloudStructuredEngine.ts`: `gemini-2.5-flash` with flat structured schema (zero calorie hallucination).
+- `src/vision/nutritionResolver.ts`: Catalog mapping, deterministic oil fat adjustments, strict Atwater macro reconciliation.
+- `src/vision/onDeviceWasmEngine.ts`: ONNX Runtime Web + OPFS model cache adapter interface.
+- `src/vision/index.ts`: `createVisionEngine()` factory and `recalculateItemNutrition()` helper.
+- `src/worker/routes/billing.ts`: Edge-native Razorpay billing, Web Crypto HMAC-SHA256, freemium daily quota gating.
+- `src/components/redesign/ProUpgradeModal.tsx`: Spatial frosted glass modal with 1-click/1-Escape close and plan selection.
+- `src/components/ProfileScreen.tsx`: Integrated `ProUpgradeModal` and preserved `isLocalOrDev` dev trigger.
+- `src/routes/v1.ts`: Mounted `/v1/billing/create-order`, `/v1/billing/verify`, `/v1/billing/webhook`.
+- `src/components/redesign/VibeDietAiScannerView.tsx`: Segmented oil/ghee selector, 0ms recalculation, per-item cards.
+- `tests/stage2VisionAndBilling.test.ts`: Perception schema, Atwater oil-level recalculation, 3-scan daily quota, Razorpay HMAC verification.
+- `tests/stage2Vision.test.ts`: VisionEngine architecture contracts & fallback tests.
+
+## Recent Changes
+- **Stage 2 Edge-Native Razorpay Billing & Freemium Gate Delivered:** Implemented `src/worker/routes/billing.ts` with pure Web standards, authoritative pricing, timing-safe HMAC-SHA256 signature verification, Supabase tier updates, and `ProUpgradeModal.tsx` portal integration.
+- **Stage 2 Vision Perception Pipeline Complete:** Shipped `src/vision/` modules, dynamic oil level selector in `VibeDietAiScannerView.tsx`, and verified Atwater $4P + 4C + 9F \equiv \text{kcal}$ invariant preservation across all oil levels.
+- **Full 5-Gate Verification Passed:** 149/149 Vitest tests passing, 0 TypeScript errors, production bundle built, and 0 secret leaks.
 
 ## Recent Changes
 - **Full E2E & Netlify Functions Verification (100% Pass Across All 6 Suites):** Verified and fixed all 4 failing tests across desktop/mobile Playwright suites:

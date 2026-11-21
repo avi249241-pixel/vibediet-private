@@ -5,6 +5,7 @@ import { useDiet } from '../context/DietContext.js';
 import { SupportTicket } from '../types/index.js';
 import { isSupabaseConfigured } from '../services/supabaseClient.js';
 import { AuthModal } from './AuthModal.js';
+import { ProUpgradeModal } from './redesign/ProUpgradeModal.js';
 
 export const ProfileScreen: React.FC = () => {
   const { user, token, activatePro } = useAuth();
@@ -21,6 +22,7 @@ export const ProfileScreen: React.FC = () => {
 
   // Modal & Auth State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [showProModal, setShowProModal] = useState(false);
   const isCloudActive = isSupabaseConfigured();
 
   // Interactive Calorie & Macro Goal Editor State
@@ -472,7 +474,7 @@ export const ProfileScreen: React.FC = () => {
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={() => handleCheckout('razorpay')}
+                onClick={() => setShowProModal(true)}
                 data-testid="upgrade-razorpay-btn"
                 className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition cursor-pointer shadow-xs"
               >
@@ -651,6 +653,15 @@ export const ProfileScreen: React.FC = () => {
 
       {/* Auth Modal Mount */}
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
+
+      {/* Pro Upgrade Modal Mount */}
+      <ProUpgradeModal
+        isOpen={showProModal}
+        onClose={() => setShowProModal(false)}
+        onSuccess={() => activatePro()}
+        token={token}
+        isLocalOrDev={isLocalOrDev}
+      />
     </div>
   );
 };
