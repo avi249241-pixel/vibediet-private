@@ -5,9 +5,6 @@
  * IndexedDB outbox queue. Flushes compact (~120 byte) delta payloads to
  * Cloudflare Worker / Supabase via POST /v1/sync/push, and hydrates client
  * state via GET /v1/sync/pull on login or reconnect.
- *
- * Protects iOS Safari users against 7-day ITP storage eviction while maintaining
- * zero-network-dependency offline capability.
  */
 
 export interface MealDeltaRecord {
@@ -58,13 +55,10 @@ const DB_VERSION = 1;
 const FALLBACK_KEY = 'vibediet_delta_outbox_fallback_v1';
 const LAST_SYNC_KEY = 'vibediet_last_delta_sync_ts';
 
-// In-memory cache fallback for environments without IndexedDB (e.g., node/tests)
 let memoryOutbox: DeltaOutboxEntry[] = [];
 let memoryLastSyncTimestamp: string | null = null;
+let flushInFlight: Promise<{ synced: number; failed: number }> | null = null;
 
-/**
- * Open or upgrade the local IndexedDB outbox database.
- */
 function openOutboxDB(): Promise<IDBDatabase | null> {
   if (typeof window === 'undefined' || !window.indexedDB) {
     return Promise.resolve(null);
@@ -90,9 +84,6 @@ function openOutboxDB(): Promise<IDBDatabase | null> {
   });
 }
 
-/**
- * Persist an item into the fallback queue (localStorage / memory).
- */
 function enqueueFallback(entry: DeltaOutboxEntry): void {
   memoryOutbox.push(entry);
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -104,9 +95,6 @@ function enqueueFallback(entry: DeltaOutboxEntry): void {
   }
 }
 
-/**
- * Read all fallback outbox entries.
- */
 function readFallback(): DeltaOutboxEntry[] {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -124,9 +112,6 @@ function readFallback(): DeltaOutboxEntry[] {
   return [...memoryOutbox];
 }
 
-/**
- * Remove items from fallback store by id.
- */
 function removeFallback(ids: string[]): void {
   const set = new Set(ids);
   memoryOutbox = memoryOutbox.filter((item) => !set.has(item.id));
@@ -139,9 +124,6 @@ function removeFallback(ids: string[]): void {
   }
 }
 
-/**
- * Add an entry to the outbox queue.
- */
 export async function enqueueDeltaOutbox(
   entity: 'meal' | 'weight',
   data: MealDeltaRecord | WeightDeltaRecord
@@ -179,9 +161,6 @@ export async function enqueueDeltaOutbox(
   });
 }
 
-/**
- * Retrieve all pending entries from the outbox.
- */
 export async function getPendingOutbox(): Promise<DeltaOutboxEntry[]> {
   const db = await openOutboxDB();
   if (!db) {
@@ -196,7 +175,6 @@ export async function getPendingOutbox(): Promise<DeltaOutboxEntry[]> {
       req.onsuccess = () => {
         const items: DeltaOutboxEntry[] = req.result || [];
         const fallback = readFallback();
-        // Merge without duplicating IDs
         const seen = new Set(items.map((i) => i.id));
         for (const item of fallback) {
           if (!seen.has(item.id)) {
@@ -213,9 +191,6 @@ export async function getPendingOutbox(): Promise<DeltaOutboxEntry[]> {
   });
 }
 
-/**
- * Remove synced entries from the outbox.
- */
 export async function removeOutboxEntries(ids: string[]): Promise<void> {
   if (ids.length === 0) return;
   removeFallback(ids);
@@ -244,18 +219,13 @@ export async function removeOutboxEntries(ids: string[]): Promise<void> {
   });
 }
 
-/**
- * Get total pending outbox items count.
- */
 export async function getOutboxCount(): Promise<number> {
   const items = await getPendingOutbox();
   return items.length;
 }
 
-/**
- * Clear the entire outbox queue (e.g., on user account wipe / GDPR erasure).
- */
 export async function clearOutbox(): Promise<void> {
+  flushInFlight = null;
   memoryOutbox = [];
   memoryLastSyncTimestamp = null;
   if (typeof window !== 'undefined' && window.localStorage) {
@@ -289,9 +259,6 @@ export async function clearOutbox(): Promise<void> {
   });
 }
 
-/**
- * Last synchronization timestamp accessor.
- */
 export function getLastSyncTimestamp(): string | null {
   if (typeof window !== 'undefined' && window.localStorage) {
     try {
@@ -314,10 +281,6 @@ export function setLastSyncTimestamp(ts: string): void {
   }
 }
 
-/**
- * Queue a meal delta update (upsert or delete).
- * Executes asynchronously without blocking UI latency (<5ms).
- */
 export function queueMealDelta(
   meal: {
     id: string;
@@ -347,9 +310,6 @@ export function queueMealDelta(
   return enqueueDeltaOutbox('meal', record).catch(() => 'fallback-id');
 }
 
-/**
- * Queue a scale weight delta update (upsert or delete).
- */
 export function queueWeightDelta(
   weight: {
     id: string;
@@ -369,19 +329,11 @@ export function queueWeightDelta(
   return enqueueDeltaOutbox('weight', record).catch(() => 'fallback-id');
 }
 
-// In-flight promise lock to prevent concurrent flush calls from sending duplicate push requests
-let flushInFlight: Promise<{ synced: number; failed: number }> | null = null;
-
-/**
- * Internal executor for flushing pending delta mutations to POST /v1/sync/push.
- */
-async function executeFlush(token?: string): Promise<{ synced: number; failed: number }> {
-  // If no bearer token or in local guest mode, keep outbox queued without failing
+async function executeFlushDeltaOutbox(token?: string): Promise<{ synced: number; failed: number }> {
   if (!token || !token.trim() || token.startsWith('uid:usr_') || token.startsWith('uid:guest')) {
     return { synced: 0, failed: 0 };
   }
 
-  // Check if browser is offline
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return { synced: 0, failed: 0 };
   }
@@ -429,18 +381,15 @@ async function executeFlush(token?: string): Promise<{ synced: number; failed: n
       return { synced: processedIds.length, failed: 0 };
     }
 
-    // 401 Unauthorized, 502 Database error, or 503 Supabase not configured: keep items in outbox
     return { synced: 0, failed: processedIds.length };
-  } catch (err) {
-    // Network failure: preserve outbox
+  } catch {
     return { synced: 0, failed: processedIds.length };
   }
 }
 
 /**
- * Flushes pending delta mutations to the edge sync endpoint POST /v1/sync/push.
- * Returns { synced, failed } count.
- * Uses an in-flight promise lock (mutex) to coalesce concurrent calls onto a single request.
+ * Flushes pending delta mutations to POST /v1/sync/push with an in-flight mutex
+ * so concurrent triggers coalesce and never double-push outbox entries.
  */
 export async function flushDeltaOutbox(token?: string): Promise<{ synced: number; failed: number }> {
   if (flushInFlight) {
@@ -449,7 +398,7 @@ export async function flushDeltaOutbox(token?: string): Promise<{ synced: number
 
   flushInFlight = (async () => {
     try {
-      return await executeFlush(token);
+      return await executeFlushDeltaOutbox(token);
     } finally {
       flushInFlight = null;
     }
@@ -458,10 +407,6 @@ export async function flushDeltaOutbox(token?: string): Promise<{ synced: number
   return flushInFlight;
 }
 
-/**
- * Hydrates local state by pulling remote delta updates via GET /v1/sync/pull.
- * Returns the payload or null if unauthenticated or offline.
- */
 export async function pullRemoteDeltas(
   token?: string,
   since?: string | null

@@ -10,9 +10,6 @@ import {
   ResolvedFoodItem,
 } from './types.js';
 
-/**
- * Normalizes strings for robust matching against food catalog items.
- */
 function cleanQuery(str: string): string {
   return str
     .toLowerCase()
@@ -21,9 +18,6 @@ function cleanQuery(str: string): string {
     .trim();
 }
 
-/**
- * Common culinary synonyms and keyword aliases for staple Indian and global dishes.
- */
 const FOOD_ALIAS_MAP: Record<string, string> = {
   roti: 'phulka',
   chapati: 'phulka',
@@ -55,22 +49,16 @@ const FOOD_ALIAS_MAP: Record<string, string> = {
   omelette: 'omelette',
 };
 
-/**
- * Finds the most representative catalog entry for a detected food dish name.
- */
 export function findMatchingCatalogItem(dishName: string): FoodItemEntry | null {
   const cleaned = cleanQuery(dishName);
   if (!cleaned) return null;
 
-  // 1. Direct local search via foodCatalogService
   const localMatches = foodCatalogService.searchLocal(cleaned);
   if (localMatches.length > 0) {
-    // Return the match whose name is most relevant
     const bestMatch = localMatches.find((m) => cleanQuery(m.name) === cleaned) || localMatches[0];
     return bestMatch;
   }
 
-  // 2. Tokenized word matching across LOCAL_VERIFIED_CATALOG
   const tokens = cleaned.split(' ').filter((t) => t.length > 2);
   let bestScore = 0;
   let bestEntry: FoodItemEntry | null = null;
@@ -102,17 +90,12 @@ export function findMatchingCatalogItem(dishName: string): FoodItemEntry | null 
   return null;
 }
 
-/**
- * Returns default nutrient density per gram based on cooking method and culinary profile
- * when a dish is not explicitly present in the verified catalog.
- */
 export function getDefaultNutrientDensity(
   name: string,
   cookingMethod: CookingMethod
 ): NutrientDensity {
   const clean = cleanQuery(name);
 
-  // Dal / Lentils
   if (/dal|lentil|sambar|chana|rajma|choor/i.test(clean)) {
     return {
       proteinPerGram: 0.058,
@@ -124,7 +107,6 @@ export function getDefaultNutrientDensity(
     };
   }
 
-  // Paneer / Dairy
   if (/paneer|cottage|cheese/i.test(clean)) {
     return {
       proteinPerGram: 0.145,
@@ -136,7 +118,6 @@ export function getDefaultNutrientDensity(
     };
   }
 
-  // Chicken / Poultry
   if (/chicken|poultry|tikka|murgh/i.test(clean)) {
     return {
       proteinPerGram: 0.22,
@@ -148,7 +129,6 @@ export function getDefaultNutrientDensity(
     };
   }
 
-  // Rice / Grains
   if (/rice|chawal|biryani|pulao|grain|quinoa/i.test(clean)) {
     return {
       proteinPerGram: 0.028,
@@ -160,7 +140,6 @@ export function getDefaultNutrientDensity(
     };
   }
 
-  // Roti / Flatbreads
   if (/roti|phulka|chapati|paratha|naan|bread/i.test(clean)) {
     return {
       proteinPerGram: 0.095,
@@ -172,7 +151,6 @@ export function getDefaultNutrientDensity(
     };
   }
 
-  // Vegetables / Sabzi
   if (/sabzi|subzi|vegetable|aloo|gobi|bhindi|spinach|palak/i.test(clean)) {
     return {
       proteinPerGram: 0.024,
@@ -184,7 +162,6 @@ export function getDefaultNutrientDensity(
     };
   }
 
-  // Yogurt / Beverage
   if (/curd|yogurt|dahi|chaas|lassi|buttermilk/i.test(clean)) {
     return {
       proteinPerGram: 0.035,
@@ -196,7 +173,6 @@ export function getDefaultNutrientDensity(
     };
   }
 
-  // Method-driven fallback
   switch (cookingMethod) {
     case 'steamed':
     case 'boiled':
@@ -240,13 +216,9 @@ export function getDefaultNutrientDensity(
   }
 }
 
-/**
- * Maps an oil level to its standard cookingFatCategory for Atwater uncertainty modeling.
- */
 export function mapOilLevelToFatCategory(oilLevel: OilLevel): CookingFatCategory {
   switch (oilLevel) {
     case 'none':
-      return 'observable_low';
     case 'light':
       return 'observable_low';
     case 'standard':
@@ -258,63 +230,70 @@ export function mapOilLevelToFatCategory(oilLevel: OilLevel): CookingFatCategory
   }
 }
 
-export interface ResolvedMacrosResult {
+export interface ComputeResolvedMacrosParams {
+  baseEntry: Partial<FoodItemEntry> & { id: string; name: string };
   grams: number;
-  protein: number;
-  carbs: number;
-  baseFat: number;
-  totalFat: number;
-  oilFatGramsAdded: number;
-  fiber: number;
-  sugar: number;
-  sodium: number;
-  netCarbs: number;
-  calculatedCalories: number;
+  density: NutrientDensity;
+  cookingMethod: CookingMethod;
+  oilLevel: OilLevel;
+  baseFoodName: string;
 }
 
 /**
- * Shared deterministic macro and Atwater calculation engine.
- * Scales density by portion mass, adds cooking oil/ghee fat grams,
- * and reconciles energy strictly via 4P + 4netCarbs + 9F = kcal.
+ * Single authoritative macro-scaling & Atwater reconciliation helper (4P + 4netCarbs + 9F).
  */
-export function computeResolvedMacros(
-  density: NutrientDensity,
-  grams: number,
-  oilLevel: OilLevel
-): ResolvedMacrosResult {
-  const safeGrams = Math.max(1, Math.round(grams));
-  const protein = Number((density.proteinPerGram * safeGrams).toFixed(1));
-  const carbs = Number((density.carbsPerGram * safeGrams).toFixed(1));
-  const baseFat = Number((density.baseFatPerGram * safeGrams).toFixed(1));
-  const fiber = Number((density.fiberPerGram * safeGrams).toFixed(1));
-  const sugar = Number(((density.sugarPerGram ?? 0) * safeGrams).toFixed(1));
-  const sodium = Math.round((density.sodiumPerGram ?? 0) * safeGrams);
+export function computeResolvedMacros(params: ComputeResolvedMacrosParams): ResolvedFoodItem {
+  const grams = Math.max(1, Math.round(params.grams));
+  const { density, cookingMethod, oilLevel, baseFoodName, baseEntry } = params;
+
+  const protein = Number((density.proteinPerGram * grams).toFixed(1));
+  const carbs = Number((density.carbsPerGram * grams).toFixed(1));
+  const baseFat = Number((density.baseFatPerGram * grams).toFixed(1));
+  const fiber = Number((density.fiberPerGram * grams).toFixed(1));
+  const sugar = Number(((density.sugarPerGram ?? 0) * grams).toFixed(1));
+  const sodium = Math.round((density.sodiumPerGram ?? 0) * grams);
 
   const oilFatGramsAdded = OIL_FAT_GRAMS_MAP[oilLevel] ?? 0.0;
   const totalFat = Number((baseFat + oilFatGramsAdded).toFixed(1));
 
   const netCarbs = Math.max(0, Number((carbs - fiber).toFixed(1)));
   const calculatedCalories = Math.round(4 * protein + 4 * netCarbs + 9 * totalFat);
+  const cookingFatCategory = mapOilLevelToFatCategory(oilLevel);
 
-  return {
-    grams: safeGrams,
+  const normalized = normalizeFoodItem({
+    tier: 3,
+    tierSource: 'Gemini Multimodal Vision + Nutrition Resolver',
+    confidence: 0.85,
+    ...baseEntry,
+    grams,
+    reportedCalories: calculatedCalories,
+    calculatedCalories,
+    calories: calculatedCalories,
     protein,
     carbs,
-    baseFat,
-    totalFat,
-    oilFatGramsAdded,
+    fat: totalFat,
     fiber,
     sugar,
     sodium,
-    netCarbs,
-    calculatedCalories,
+    cookingFatCategory,
+  });
+
+  return {
+    ...normalized,
+    cookingMethod,
+    oilLevel,
+    baseFoodName,
+    oilFatGramsAdded,
+    baseGrams: grams,
+    baseProteinPerGram: density.proteinPerGram,
+    baseCarbsPerGram: density.carbsPerGram,
+    baseFatPerGram: density.baseFatPerGram,
+    baseFiberPerGram: density.fiberPerGram,
+    baseSugarPerGram: density.sugarPerGram,
+    baseSodiumPerGram: density.sodiumPerGram,
   };
 }
 
-/**
- * Resolves a single DetectedFoodItem into an authoritative, Atwater-reconciled ResolvedFoodItem.
- * Deterministically adds cooking oil / ghee fat grams and ensures 4P + 4C + 9F === kcal.
- */
 export function resolveFoodItem(item: DetectedFoodItem): ResolvedFoodItem {
   const grams = Math.max(1, Math.round(item.estimatedGrams || 100));
   const matchedCatalog = findMatchingCatalogItem(item.name);
@@ -344,50 +323,24 @@ export function resolveFoodItem(item: DetectedFoodItem): ResolvedFoodItem {
     density = getDefaultNutrientDensity(item.name, item.cookingMethod);
   }
 
-  // Use single shared macro and Atwater calculation engine
-  const macros = computeResolvedMacros(density, grams, item.oilLevel);
-  const cookingFatCategory = mapOilLevelToFatCategory(item.oilLevel);
-
-  const normalized = normalizeFoodItem({
-    id: item.id || `item-${Math.random().toString(36).slice(2, 9)}`,
-    name: item.name,
-    grams: macros.grams,
-    tier,
-    tierSource,
-    confidence: item.confidence ?? 0.85,
-    reportedCalories: macros.calculatedCalories,
-    calculatedCalories: macros.calculatedCalories,
-    calories: macros.calculatedCalories,
-    protein: macros.protein,
-    carbs: macros.carbs,
-    fat: macros.totalFat,
-    fiber: macros.fiber,
-    sugar: macros.sugar,
-    sodium: macros.sodium,
-    cookingFatCategory,
-    referenceAnchor: item.referenceAnchor,
-    fdcId,
-  });
-
-  return {
-    ...normalized,
+  return computeResolvedMacros({
+    baseEntry: {
+      id: item.id || `item-${Math.random().toString(36).slice(2, 9)}`,
+      name: item.name,
+      tier,
+      tierSource,
+      confidence: item.confidence ?? 0.85,
+      referenceAnchor: item.referenceAnchor,
+      fdcId,
+    },
+    grams,
+    density,
     cookingMethod: item.cookingMethod,
     oilLevel: item.oilLevel,
     baseFoodName,
-    oilFatGramsAdded: macros.oilFatGramsAdded,
-    baseGrams: macros.grams,
-    baseProteinPerGram: density.proteinPerGram,
-    baseCarbsPerGram: density.carbsPerGram,
-    baseFatPerGram: density.baseFatPerGram,
-    baseFiberPerGram: density.fiberPerGram,
-    baseSugarPerGram: density.sugarPerGram,
-    baseSodiumPerGram: density.sodiumPerGram,
-  };
+  });
 }
 
-/**
- * Resolves an array of DetectedFoodItems into verified ResolvedFoodItems.
- */
 export function resolveDetectedItems(items: DetectedFoodItem[]): ResolvedFoodItem[] {
   return items.map((item) => resolveFoodItem(item));
 }

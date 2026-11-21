@@ -9,21 +9,23 @@ import v1Handler from '../../netlify/functions/v1.mts';
 
 export const app = new Hono<{ Bindings: Bindings }>();
 
-// Enable CORS with restricted origin policy
+// Restrict cross-origin access to local dev, Cloudflare Workers domains, and configured APP_ORIGIN
 app.use(
   '*',
   cors({
     origin: (origin, c) => {
       if (!origin) return '*';
-      const appOrigin = (c.env as Bindings | undefined)?.APP_ORIGIN as string | undefined;
-      if (appOrigin && origin === appOrigin) return origin;
-      if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return origin;
-      if (/^https?:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) return origin;
-      if (/^https:\/\/[a-zA-Z0-9-]+\.workers\.dev$/.test(origin)) return origin;
-      return undefined;
+      const customOrigin =
+        typeof c.env?.APP_ORIGIN === 'string' ? c.env.APP_ORIGIN.trim() : '';
+      if (customOrigin && origin === customOrigin) return origin;
+      if (
+        /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin) ||
+        /^https:\/\/[a-z0-9-]+\.workers\.dev$/i.test(origin)
+      ) {
+        return origin;
+      }
+      return '';
     },
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Razorpay-Signature', 'X-Requested-With'],
   })
 );
 
@@ -33,12 +35,12 @@ app.route('/v1/sync', syncRouter);
 app.route('/v1/admin', adminRouter);
 app.route('/v1/billing', billingRouter);
 
-// Delegate remaining /v1/* routes to the shared Netlify serverless handler
+// Delegate remaining /v1/* routes to shared serverless handler
 app.all('/v1/*', async (c) => {
   try {
     return await v1Handler(c.req.raw, { env: c.env });
-  } catch (err: any) {
-    console.error('[Worker] /v1/* route error:', err);
+  } catch (err: unknown) {
+    console.error('[Worker:/v1/*] Unhandled error:', err);
     return c.json({ error: 'Internal Server Error' }, 500);
   }
 });
@@ -53,8 +55,8 @@ app.all('*', async (c) => {
 
 /**
  * 3-Day Cron Keep-Alive Ping (0 3 * / 3 * *)
- * Pings Supabase Postgres REST endpoint when service key is available,
- * falling back to Auth health endpoint to prevent inactive database pausing.
+ * Executes a lightweight Postgres REST query on vibe_users so Supabase
+ * registers real database activity and does not pause free-tier projects.
  */
 export async function scheduled(
   _event: { cron?: string; scheduledTime?: number },
@@ -66,37 +68,36 @@ export async function scheduled(
       const supabaseUrl =
         env?.VITE_SUPABASE_URL ||
         (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_URL : undefined);
-      const serviceKey =
-        env?.SUPABASE_SERVICE_ROLE_KEY ||
-        (typeof process !== 'undefined' ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined);
 
       if (!supabaseUrl) {
         console.warn('[Cron:SupabaseKeepAlive] VITE_SUPABASE_URL not configured. Skipping ping.');
         return;
       }
 
-      const cleanUrl = supabaseUrl.replace(/\/$/, '');
-      if (serviceKey && serviceKey.trim()) {
-        const pingUrl = `${cleanUrl}/rest/v1/vibe_users?select=id&limit=1`;
-        const res = await fetch(pingUrl, {
-          method: 'GET',
-          headers: {
-            apikey: serviceKey.trim(),
-            Authorization: `Bearer ${serviceKey.trim()}`,
-          },
-          signal: AbortSignal.timeout(5000),
-        });
-        console.log(`[Cron:SupabaseKeepAlive] Supabase Postgres REST ping status: ${res.status}`);
-      } else {
-        const pingUrl = `${cleanUrl}/auth/v1/health`;
-        const res = await fetch(pingUrl, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000),
-        });
-        console.log(`[Cron:SupabaseKeepAlive] Supabase Auth health ping status: ${res.status}`);
-      }
-    } catch (err: any) {
-      console.warn('[Cron:SupabaseKeepAlive] Keep-alive ping failed (non-fatal):', err?.message || err);
+      const serviceKey =
+        env?.SUPABASE_SERVICE_ROLE_KEY ||
+        (typeof process !== 'undefined' ? process.env.SUPABASE_SERVICE_ROLE_KEY : undefined);
+
+      const baseUrl = supabaseUrl.replace(/\/$/, '');
+      const pingUrl = serviceKey
+        ? `${baseUrl}/rest/v1/vibe_users?select=id&limit=1`
+        : `${baseUrl}/auth/v1/health`;
+
+      const headers: Record<string, string> = serviceKey
+        ? {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+          }
+        : {};
+
+      const res = await fetch(pingUrl, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(5000),
+      });
+      console.log(`[Cron:SupabaseKeepAlive] Supabase ping status: ${res.status}`);
+    } catch (err: unknown) {
+      console.warn('[Cron:SupabaseKeepAlive] Keep-alive ping failed (non-fatal):', err);
     }
   })();
 

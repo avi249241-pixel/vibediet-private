@@ -1,4 +1,3 @@
-import { normalizeFoodItem } from '../shared/physics/atwater.js';
 import { FoodItemEntry } from '../types/index.js';
 import { CloudStructuredVisionEngine } from './cloudStructuredEngine.js';
 import {
@@ -23,9 +22,6 @@ import {
   VisionEngineResult,
 } from './types.js';
 
-/**
- * Active VisionEngine factory supporting pluggable cloud structured and on-device WASM inference.
- */
 export function createVisionEngine(provider: VisionEngineProvider = 'cloud-structured'): VisionEngine {
   switch (provider) {
     case 'on-device-wasm':
@@ -36,18 +32,12 @@ export function createVisionEngine(provider: VisionEngineProvider = 'cloud-struc
   }
 }
 
-/**
- * Client-side 0ms instant nutrition recalculator.
- * Dynamically recomputes calories and macronutrients strictly through Atwater physics
- * when a user adjusts portion grams or selects an oil/ghee tier in the UI.
- */
 export function recalculateItemNutrition(
   item: FoodItemEntry | ResolvedFoodItem,
   newGrams: number,
   newOilLevel: OilLevel,
   baseDensity?: NutrientDensity
 ): ResolvedFoodItem {
-  const grams = Math.max(1, Math.round(newGrams));
   const cookingMethod: CookingMethod =
     (item as ResolvedFoodItem).cookingMethod || 'sauteed';
   const baseFoodName = (item as ResolvedFoodItem).baseFoodName || item.name;
@@ -72,7 +62,6 @@ export function recalculateItemNutrition(
       sodiumPerGram: resolved.baseSodiumPerGram,
     };
   } else {
-    // Derive density from matching catalog item or fallback
     const matched = findMatchingCatalogItem(baseFoodName);
     if (matched && matched.grams > 0) {
       density = {
@@ -88,49 +77,24 @@ export function recalculateItemNutrition(
     }
   }
 
-  // Use single shared macro and Atwater calculation engine
-  const macros = computeResolvedMacros(density, grams, newOilLevel);
-  const cookingFatCategory = mapOilLevelToFatCategory(newOilLevel);
-
-  const normalized = normalizeFoodItem({
-    ...item,
-    grams: macros.grams,
-    reportedCalories: macros.calculatedCalories,
-    calculatedCalories: macros.calculatedCalories,
-    calories: macros.calculatedCalories,
-    protein: macros.protein,
-    carbs: macros.carbs,
-    fat: macros.totalFat,
-    fiber: macros.fiber,
-    sugar: macros.sugar,
-    sodium: macros.sodium,
-    cookingFatCategory,
-  });
-
-  return {
-    ...normalized,
+  return computeResolvedMacros({
+    baseEntry: item,
+    grams: newGrams,
+    density,
     cookingMethod,
     oilLevel: newOilLevel,
     baseFoodName,
-    oilFatGramsAdded: macros.oilFatGramsAdded,
-    baseGrams: macros.grams,
-    baseProteinPerGram: density.proteinPerGram,
-    baseCarbsPerGram: density.carbsPerGram,
-    baseFatPerGram: density.baseFatPerGram,
-    baseFiberPerGram: density.fiberPerGram,
-    baseSugarPerGram: density.sugarPerGram,
-    baseSodiumPerGram: density.sodiumPerGram,
-  };
+  });
 }
 
 export {
   CloudStructuredVisionEngine,
   OnDeviceWasmVisionEngine,
+  computeResolvedMacros,
   resolveFoodItem,
   resolveDetectedItems,
   findMatchingCatalogItem,
   getDefaultNutrientDensity,
-  computeResolvedMacros,
   mapOilLevelToFatCategory,
 };
 

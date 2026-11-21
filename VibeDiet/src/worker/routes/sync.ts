@@ -4,7 +4,6 @@ import { getSupabaseAdmin } from '../supabaseAdmin.js';
 
 export const syncRouter = new Hono<{ Bindings: Bindings }>();
 
-// Helper to extract token and authenticate with Supabase
 async function authenticateUser(c: any): Promise<{ user: any; error?: string }> {
   const authHeader = c.req.header('Authorization') || c.req.header('authorization') || '';
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -67,9 +66,7 @@ syncRouter.post('/push', async (c) => {
   };
 
   const syncedAt = new Date().toISOString();
-  let syncError: any = null;
 
-  // Upsert meal delta records
   if (meals.length > 0) {
     const records = meals.map((m: any) => ({
       ...m,
@@ -80,16 +77,14 @@ syncRouter.post('/push', async (c) => {
       .from('vibe_meal_sync')
       .upsert(records, { onConflict: 'id' });
 
-    if (!mealError) {
-      syncedCounts.meals = meals.length;
-    } else {
-      console.warn('[SyncPush] Meal upsert error:', mealError);
-      syncError = mealError;
+    if (mealError) {
+      console.error('[SyncPush] Meal upsert error:', mealError);
+      return c.json({ success: false, error: 'Database sync failed' }, 502);
     }
+    syncedCounts.meals = meals.length;
   }
 
-  // Upsert weight delta records
-  if (!syncError && weights.length > 0) {
+  if (weights.length > 0) {
     const records = weights.map((w: any) => ({
       ...w,
       user_id: user.id,
@@ -99,16 +94,11 @@ syncRouter.post('/push', async (c) => {
       .from('vibe_weight_sync')
       .upsert(records, { onConflict: 'id' });
 
-    if (!weightError) {
-      syncedCounts.weights = weights.length;
-    } else {
-      console.warn('[SyncPush] Weight upsert error:', weightError);
-      syncError = weightError;
+    if (weightError) {
+      console.error('[SyncPush] Weight upsert error:', weightError);
+      return c.json({ success: false, error: 'Database sync failed' }, 502);
     }
-  }
-
-  if (syncError) {
-    return c.json({ success: false, error: 'Database sync failed' }, 502);
+    syncedCounts.weights = weights.length;
   }
 
   return c.json({
@@ -152,13 +142,15 @@ syncRouter.get('/pull', async (c) => {
 
   const [mealRes, weightRes] = await Promise.all([mealQuery, weightQuery]);
 
-  const meals = mealRes.data || [];
-  const weights = weightRes.data || [];
+  if (mealRes.error || weightRes.error) {
+    console.error('[SyncPull] Query error:', mealRes.error || weightRes.error);
+    return c.json({ success: false, error: 'Database pull failed' }, 502);
+  }
 
   return c.json({
     success: true,
     pulledAt,
-    meals,
-    weights,
+    meals: mealRes.data || [],
+    weights: weightRes.data || [],
   }, 200);
 });

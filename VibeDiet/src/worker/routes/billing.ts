@@ -2,12 +2,17 @@
  * Edge-Native Razorpay Billing & Freemium Gate
  *
  * Implemented using pure Web Fetch API and Web Crypto HMAC-SHA256
- * (zero heavy Node SDKs, ensuring Cloudflare Worker / Netlify Edge CPU stays < 1ms).
+ * (zero heavy Node SDKs, ensuring Cloudflare Worker Edge CPU stays < 1ms).
  */
 
+import { Hono } from 'hono';
+import type { Bindings } from '../env.js';
 import { getSupabaseAdmin } from '../supabaseAdmin.js';
 
 export interface BillingEnv {
+  VITE_SUPABASE_URL?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
   RAZORPAY_KEY_ID?: string;
   RAZORPAY_KEY_SECRET?: string;
   RAZORPAY_WEBHOOK_SECRET?: string;
@@ -143,26 +148,58 @@ export async function verifyRazorpayWebhookSignature(
 }
 
 /**
- * Updates user tier in Supabase if configured.
- * Uses Supabase Admin client with SUPABASE_SERVICE_ROLE_KEY to bypass RLS.
+ * Updates user tier in Supabase via Service Role Admin client (bypasses RLS).
  */
 export async function updateSupabaseUserTier(
   userId: string,
   tier: 'free' | 'pro' = 'pro',
   env: BillingEnv = process.env as BillingEnv
 ): Promise<boolean> {
-  const supabase = getSupabaseAdmin(env as any);
+  const supabase = getSupabaseAdmin(env as unknown as Bindings);
   if (!supabase) return false;
   try {
     const { error } = await supabase
       .from('vibe_users')
       .update({ tier, updated_at: new Date().toISOString() })
       .eq('id', userId);
-    return !error;
+    if (error) {
+      console.error('[Billing] Supabase tier update error:', error);
+      return false;
+    }
+    return true;
   } catch (err) {
-    console.warn('[Billing] Supabase tier update warning:', err);
+    console.error('[Billing] Supabase tier update exception:', err);
     return false;
   }
+}
+
+/**
+ * Resolves the authoritative userId from a Supabase Bearer JWT when provided,
+ * falling back to body.userId only when no Authorization header is sent.
+ */
+async function resolveAuthenticatedUserId(
+  request: Request,
+  bodyUserId: unknown,
+  env: BillingEnv
+): Promise<{ userId?: string; unauthorized?: boolean }> {
+  const authHeader = request.headers.get('authorization') || request.headers.get('Authorization') || '';
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    const supabase = getSupabaseAdmin(env as unknown as Bindings);
+    if (supabase) {
+      const { data, error } = await supabase.auth.getUser(token);
+      if (error || !data?.user?.id) {
+        return { unauthorized: true };
+      }
+      return { userId: data.user.id };
+    }
+  }
+
+  if (typeof bodyUserId === 'string' && bodyUserId.trim()) {
+    return { userId: bodyUserId.trim() };
+  }
+
+  return {};
 }
 
 /**
@@ -172,13 +209,19 @@ export async function signProStatusPayload(
   userId: string,
   secret?: string
 ): Promise<string> {
-  const resolvedSecret = secret || process.env.SESSION_SECRET;
+  const isTestEnv =
+    typeof process !== 'undefined' &&
+    Boolean(process.env.VITEST || process.env.NODE_ENV === 'test');
+
+  const resolvedSecret =
+    secret ||
+    (typeof process !== 'undefined' ? process.env.SESSION_SECRET : undefined) ||
+    (isTestEnv ? 'vibediet-test-session-secret-key-38bdf8' : '');
+
   if (!resolvedSecret) {
-    if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
-      throw new Error('SESSION_SECRET is required to sign Pro status tokens in production');
-    }
+    throw new Error('SESSION_SECRET is required to sign Pro status tokens');
   }
-  const finalSecret = resolvedSecret || 'vibediet-signed-session-secret-key-38bdf8';
+
   const payloadObj = {
     uid: userId,
     tier: 'pro',
@@ -187,9 +230,8 @@ export async function signProStatusPayload(
     expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
   };
   const payloadStr = JSON.stringify(payloadObj);
-  const enc = new TextEncoder();
   const b64 = btoa(payloadStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const sigHex = await computeHmacSha256Hex(finalSecret, b64);
+  const sigHex = await computeHmacSha256Hex(resolvedSecret, b64);
   return `${b64}.${sigHex}`;
 }
 
@@ -223,30 +265,17 @@ export async function handleCreateOrder(
     });
   }
 
-  const planKey: PlanKey = body.plan === 'pro_monthly' ? 'pro_monthly' : 'pro_annual';
-  const plan = AUTHORITATIVE_PLANS[planKey];
-
-  // Verify Bearer token if present to authenticate the user authoritatively
-  const authHeader = request.headers.get('Authorization') || request.headers.get('authorization') || '';
-  let verifiedUserId: string | undefined;
-  if (authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7).trim();
-    if (token) {
-      try {
-        const supabase = getSupabaseAdmin(env as any);
-        if (supabase) {
-          const { data, error } = await supabase.auth.getUser(token);
-          if (!error && data?.user?.id) {
-            verifiedUserId = data.user.id;
-          }
-        }
-      } catch (err) {
-        console.warn('[Billing] Bearer auth check warning:', err);
-      }
-    }
+  const resolvedAuth = await resolveAuthenticatedUserId(request, body.userId, env);
+  if (resolvedAuth.unauthorized) {
+    return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user token' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
-  const userId = verifiedUserId || body.userId || 'usr_anonymous';
+  const planKey: PlanKey = body.plan === 'pro_monthly' ? 'pro_monthly' : 'pro_annual';
+  const plan = AUTHORITATIVE_PLANS[planKey];
+  const userId = resolvedAuth.userId || 'usr_anonymous';
 
   const basicAuth = btoa(`${keyId}:${keySecret}`);
   const orderPayload = {
@@ -271,8 +300,9 @@ export async function handleCreateOrder(
 
     if (!rzpRes.ok) {
       const errText = await rzpRes.text();
+      console.error('[Billing:CreateOrder] Razorpay upstream error:', errText);
       return new Response(
-        JSON.stringify({ error: `Razorpay upstream error: ${errText}` }),
+        JSON.stringify({ error: 'Razorpay upstream order creation failed' }),
         { status: 502, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -288,9 +318,10 @@ export async function handleCreateOrder(
       }),
       { status: 201, headers: { 'Content-Type': 'application/json' } }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
+    console.error('[Billing:CreateOrder] Network exception:', err);
     return new Response(
-      JSON.stringify({ error: `Network error connecting to Razorpay: ${err?.message || err}` }),
+      JSON.stringify({ error: 'Network error connecting to Razorpay' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
@@ -322,13 +353,21 @@ export async function handleVerifyPayment(
     });
   }
 
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, userId } = body;
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
 
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     return new Response(
       JSON.stringify({ error: 'Missing required Razorpay verification parameters' }),
       { status: 400, headers: { 'Content-Type': 'application/json' } }
     );
+  }
+
+  const resolvedAuth = await resolveAuthenticatedUserId(request, body.userId, env);
+  if (resolvedAuth.unauthorized) {
+    return new Response(JSON.stringify({ error: 'Unauthorized: Invalid user token' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   const isValid = await verifyRazorpayPaymentSignature(
@@ -345,34 +384,15 @@ export async function handleVerifyPayment(
     );
   }
 
-  // Verify Bearer token if present to authenticate the user authoritatively
-  const authHeader = request.headers.get('Authorization') || request.headers.get('authorization') || '';
-  let verifiedUserId: string | undefined;
-  if (authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7).trim();
-    if (token) {
-      try {
-        const supabase = getSupabaseAdmin(env as any);
-        if (supabase) {
-          const { data, error } = await supabase.auth.getUser(token);
-          if (!error && data?.user?.id) {
-            verifiedUserId = data.user.id;
-          }
-        }
-      } catch (err) {
-        console.warn('[Billing] Bearer auth check warning:', err);
-      }
-    }
+  const effectiveUserId = resolvedAuth.userId;
+  if (effectiveUserId) {
+    await updateSupabaseUserTier(effectiveUserId, 'pro', env);
   }
 
-  const targetUserId = verifiedUserId || userId || 'usr_verified_pro';
-
-  // Update Supabase user tier to pro using service role key (RLS bypass)
-  if (targetUserId) {
-    await updateSupabaseUserTier(targetUserId, 'pro', env);
-  }
-
-  const signedProToken = await signProStatusPayload(targetUserId, env.SESSION_SECRET);
+  const signedProToken = await signProStatusPayload(
+    effectiveUserId || 'usr_verified_pro',
+    env.SESSION_SECRET
+  );
 
   return new Response(
     JSON.stringify({
@@ -445,12 +465,6 @@ export async function handleWebhook(
     { status: 200, headers: { 'Content-Type': 'application/json' } }
   );
 }
-
-/**
- * Hono router for Cloudflare Worker edge mounting.
- */
-import { Hono } from 'hono';
-import type { Bindings } from '../env.js';
 
 export const billingRouter = new Hono<{ Bindings: Bindings }>();
 

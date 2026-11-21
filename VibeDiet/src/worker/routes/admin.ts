@@ -16,6 +16,26 @@ function timingSafeStringEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+function countConfiguredGeminiKeys(env?: Bindings): number {
+  const poolRaw =
+    (typeof env?.GEMINI_API_KEYS === 'string' ? env.GEMINI_API_KEYS : '') ||
+    (typeof process !== 'undefined' ? process.env.GEMINI_API_KEYS || '' : '');
+  const singleRaw =
+    (typeof env?.GEMINI_API_KEY === 'string' ? env.GEMINI_API_KEY : '') ||
+    (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY || '' : '');
+
+  const keys = new Set<string>();
+  for (const part of poolRaw.split(/[\s,;]+/)) {
+    const trimmed = part.trim();
+    if (trimmed && !trimmed.startsWith('your_')) keys.add(trimmed);
+  }
+  const singleTrimmed = singleRaw.trim();
+  if (singleTrimmed && !singleTrimmed.startsWith('your_')) {
+    keys.add(singleTrimmed);
+  }
+  return keys.size;
+}
+
 adminRouter.get('/overview', async (c) => {
   const authHeader = c.req.header('Authorization') || c.req.header('authorization') || '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
@@ -35,23 +55,8 @@ adminRouter.get('/overview', async (c) => {
       ? Number((process.memoryUsage().rss / 1024 / 1024).toFixed(2))
       : 39.4;
 
+  const configuredKeys = countConfiguredGeminiKeys(c.env);
   const timestamp = new Date().toISOString();
-
-  const rawKeyString =
-    (c.env?.GEMINI_API_KEYS as string | undefined) ||
-    (typeof process !== 'undefined' ? process.env.GEMINI_API_KEYS : undefined) ||
-    (c.env?.GEMINI_API_KEY as string | undefined) ||
-    (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined) ||
-    '';
-
-  const keyList = rawKeyString
-    .split(/[,;\n]+/)
-    .map((k) => k.trim())
-    .filter((k) => k.length > 0);
-
-  const configuredCount = keyList.length > 0 ? keyList.length : (rawKeyString.trim() ? 1 : 0);
-  const activeKeys = configuredCount > 0 ? configuredCount : 1;
-  const totalKeys = configuredCount > 0 ? configuredCount : 1;
 
   return c.json({
     system: {
@@ -59,21 +64,21 @@ adminRouter.get('/overview', async (c) => {
       timestamp,
       rssMb: memUsage,
       memoryRssMb: memUsage,
-      activeKeys,
-      totalKeys,
+      activeKeys: configuredKeys,
+      totalKeys: configuredKeys,
       runtime: 'cloudflare-workers',
     },
     keys: {
-      active: activeKeys,
-      total: totalKeys,
-      status: 'healthy',
+      active: configuredKeys,
+      total: configuredKeys,
+      status: configuredKeys > 0 ? 'healthy' : 'unconfigured',
     },
     keyPool: {
-      configuredCount,
-      activeCount: activeKeys,
+      configuredCount: configuredKeys,
+      activeCount: configuredKeys,
       cooldownCount: 0,
       revokedCount: 0,
-      poolSize: totalKeys,
+      poolSize: configuredKeys,
       slots: [],
     },
     keySlots: [],
