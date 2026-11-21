@@ -6,10 +6,10 @@ Linked: [[00-Home]] | [[Active-Context]] | [[Code-Graph]] | [[DietContext]] | [[
 
 ## 1. Tech Stack
 - **Frontend:** React 19, TypeScript, Vite, Tailwind CSS 4 (spatial frosted-glass UI), Motion, Lucide Icons.
-- **Backend:** Node.js 20+, Express (`server.ts`, `src/routes/v1.ts`), Helmet, CORS, rate limiters.
-- **Serverless:** Netlify Functions v2 (`netlify/functions/v1.mts`, `admin.mts`), Netlify Database (`@netlify/database`).
+- **Backend & Edge:** Node.js 20+, Express (`server.ts`, `src/routes/v1.ts`), Cloudflare Workers + Hono (`src/worker/index.ts`, `wrangler.toml`), Helmet, CORS, rate limiters.
+- **Serverless & Edge Runtime:** Cloudflare Workers (Static Assets SPA + Hono edge routes), Netlify Functions v2 (`netlify/functions/v1.mts`, `admin.mts`), Netlify Database (`@netlify/database`), Supabase HTTP Admin (`src/worker/supabaseAdmin.ts`).
 - **AI / Physics:** `@google/genai` (`[[Gemini-Recognition-Swarm]]`), `[[Key-Pool-Router]]`, `[[Atwater-Verifier]]`, `[[Adaptive-TDEE-EWMA]]`.
-- **Offline / PWA:** ServiceWorker (`sw.js`), `offlineSyncQueue.ts`, zero-dependency `dist/VibeDiet-App.html`.
+- **Offline / PWA / Sync:** ServiceWorker (`sw.js`), `offlineSyncQueue.ts`, Hybrid Local-First Delta Sync (`src/services/cloudDeltaSync.ts`), zero-dependency `dist/VibeDiet-App.html`.
 
 ## 2. End-to-End Neural Pipeline
 ```mermaid
@@ -45,3 +45,5 @@ flowchart LR
 - `src/services/geminiNutritionSwarm.ts` & `src/services/keyPoolRouter.ts`: [[Gemini-Recognition-Swarm]] & [[Key-Pool-Router]].
 - `src/shared/physics/atwater.ts` & `src/shared/physics/adaptiveTdee.ts`: [[Atwater-Verifier]] & [[Adaptive-TDEE-EWMA]].
 - `netlify/functions/v1.mts`, `netlify/functions/admin.mts`, `src/routes/v1.ts`: [[Serverless-API]] & [[PostgreSQL-Schema]] persistence.
+- `src/worker/index.ts`, `src/worker/routes/health.ts`, `src/worker/routes/sync.ts`, `src/worker/routes/admin.ts`: Cloudflare Workers + Hono edge router & static asset serving.
+- `src/services/cloudDeltaSync.ts`: Hybrid local-first IndexedDB delta outbox queue and Supabase HTTP delta sync.

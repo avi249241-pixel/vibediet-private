@@ -200,7 +200,7 @@ export default function VibeDietNavbar({
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                onToggleTheme();
+                onToggleTheme?.();
               }
             }}
             data-testid="nav-theme-toggle-btn"

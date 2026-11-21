@@ -37,3 +37,5 @@ erDiagram
 | `vibe_system_telemetry` | `metric_name`, `recorded_at` | [[AI-Meal-Scan]], [[Key-Pool-Router]], [[Admin-Console]] |
 | `vibe_repeat_meals` | `id`, `user_id` | [[Today-Dashboard]], [[DietContext]] |
 | `vibe_portion_calibrations` | `(user_id, item_name)` | [[AI-Meal-Scan]] |
+| `vibe_meal_sync` | `id` (conflict key), `user_id` | [[DietContext]], [[Serverless-API]] (Hybrid Delta Sync) |
+| `vibe_weight_sync` | `id` (conflict key), `user_id` | [[Metabolism-Coach]], [[Serverless-API]] (Hybrid Delta Sync) |

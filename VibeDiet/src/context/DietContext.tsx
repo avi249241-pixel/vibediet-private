@@ -30,6 +30,14 @@ import {
 } from '../utils/atwater.js';
 import { parseNaturalLanguageMeal } from '../services/naturalLanguageMealParser.js';
 import { enqueueOfflineMutation as enqueueMutation, flushOfflineQueue } from '../services/offlineSyncQueue.js';
+import {
+  queueMealDelta,
+  queueWeightDelta,
+  flushDeltaOutbox,
+  pullRemoteDeltas,
+  getLastSyncTimestamp,
+  clearOutbox as clearDeltaOutbox,
+} from '../services/cloudDeltaSync.js';
 
 interface DietContextValue {
   selectedDate: string;
@@ -199,6 +207,7 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const handleOnline = () => {
+      flushDeltaOutbox(token).catch(() => {});
       flushOfflineQueue(async (mutation) => {
         try {
           if (mutation.type === 'LOG_MEAL') {
@@ -231,6 +240,65 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let isMounted = true;
     async function syncFromBackend() {
       try {
+        // Hybrid Local-First Delta Sync: pull remote deltas to protect against ITP eviction
+        pullRemoteDeltas(token, getLastSyncTimestamp())
+          .then((deltaData) => {
+            if (!isMounted || !deltaData) return;
+            if (deltaData.meals && deltaData.meals.length > 0) {
+              setMeals((prev) => {
+                const map = new Map(prev.map((m) => [m.id, m]));
+                for (const d of deltaData.meals) {
+                  if (d.action === 'delete') {
+                    map.delete(d.id);
+                  } else if (!map.has(d.id)) {
+                    map.set(d.id, {
+                      id: d.id,
+                      date: d.date,
+                      slot: (d.slot as MealSlot) || 'lunch',
+                      title: d.title || 'Synced Meal',
+                      createdAt: d.updated_at || new Date().toISOString(),
+                      items: [],
+                      totalCalories: d.calories || 0,
+                      minCalories: d.calories || 0,
+                      maxCalories: d.calories || 0,
+                      totalProtein: d.protein_g || 0,
+                      totalCarbs: d.carbs_g || 0,
+                      totalFat: d.fat_g || 0,
+                      totalFiber: 0,
+                      totalSugar: 0,
+                      totalSodium: 0,
+                      hasUnobservableFats: false,
+                      hasAtwaterDiscrepancy: false,
+                    });
+                  }
+                }
+                return Array.from(map.values());
+              });
+            }
+            if (deltaData.weights && deltaData.weights.length > 0) {
+              setWeightLogs((prev) => {
+                const map = new Map(prev.map((w) => [w.date, w]));
+                for (const w of deltaData.weights) {
+                  if (w.action === 'delete') {
+                    map.delete(w.date);
+                  } else if (!map.has(w.date)) {
+                    map.set(w.date, {
+                      id: w.id,
+                      date: w.date,
+                      weightKg: w.weight_kg,
+                      smoothedWeightKg: w.weight_kg,
+                      createdAt: w.updated_at || new Date().toISOString(),
+                    });
+                  }
+                }
+                return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+              });
+            }
+          })
+          .catch(() => {});
+
+        flushDeltaOutbox(token).catch(() => {});
+
         const [dayRes, weightsRes, repeatRes, bioRes] = await Promise.all([
           fetch(`/v1/days/${selectedDate}`, {
             headers: { Authorization: `Bearer ${token}` },
@@ -444,6 +512,10 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
       hasAtwaterDiscrepancy: items.some((i) => i.hasAtwaterDiscrepancy),
     };
     setMeals((prev) => [...prev, meal]);
+    // Queue compact delta for hybrid local-first edge sync
+    queueMealDelta(meal, 'upsert').catch(() => {});
+    flushDeltaOutbox(token).catch(() => {});
+
     fetch('/v1/meals/manual', {
       method: 'POST',
       headers: {
@@ -479,6 +551,8 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteMeal = (mealId: string) => {
     setMeals((prev) => prev.filter((m) => m.id !== mealId));
+    queueMealDelta({ id: mealId, date: selectedDate }, 'delete').catch(() => {});
+    flushDeltaOutbox(token).catch(() => {});
     fetch(`/v1/meals/${mealId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
@@ -916,6 +990,9 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return [...list, entry];
     });
     updateBiometrics({ weightKg });
+    // Queue compact delta for hybrid local-first edge sync
+    queueWeightDelta(entry, 'upsert').catch(() => {});
+    flushDeltaOutbox(token).catch(() => {});
 
     fetch('/v1/weights', {
       method: 'POST',
@@ -981,6 +1058,7 @@ export const DietProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setWeightLogs([]);
     setRepeatMeals([]);
     setSupportTickets([]);
+    clearDeltaOutbox().catch(() => {});
     try {
       localStorage.removeItem(VIBEDIET_STORAGE_KEY_V1);
       localStorage.removeItem('vibediet_diary_state_v3');

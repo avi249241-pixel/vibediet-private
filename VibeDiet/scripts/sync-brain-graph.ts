@@ -48,11 +48,11 @@ function walkFiles(dir: string, exts: Set<string>, out: string[] = []): string[]
 function classifyFile(rel: string): { layer: ParsedFile['layer']; brainNote: string } {
   const lower = rel.toLowerCase();
 
-  // Serverless & Express API
-  if (lower.startsWith('netlify/functions/admin') || lower.includes('admindashboardscreen')) {
-    return { layer: lower.startsWith('netlify/') ? 'api' : 'ui', brainNote: 'Admin-Console' };
+  // Serverless & Express & Edge API
+  if (lower.startsWith('netlify/functions/admin') || lower.includes('src/worker/routes/admin') || lower.includes('admindashboardscreen')) {
+    return { layer: lower.startsWith('netlify/') || lower.includes('src/worker/') ? 'api' : 'ui', brainNote: 'Admin-Console' };
   }
-  if (lower.startsWith('netlify/functions/') || lower.startsWith('src/routes/') || lower === 'server.ts') {
+  if (lower.startsWith('netlify/functions/') || lower.startsWith('src/routes/') || lower.startsWith('src/worker/') || lower === 'server.ts') {
     return { layer: 'api', brainNote: 'Serverless-API' };
   }
 
@@ -61,13 +61,14 @@ function classifyFile(rel: string): { layer: ParsedFile['layer']; brainNote: str
     lower.includes('persistence/') ||
     lower.includes('datastore') ||
     lower.includes('mockfirestore') ||
-    lower.includes('supabaseclient')
+    lower.includes('supabaseclient') ||
+    lower.includes('supabaseadmin')
   ) {
     return { layer: 'db', brainNote: 'PostgreSQL-Schema' };
   }
 
   // Context / State Hub
-  if (lower.startsWith('src/context/') || lower.includes('offlinesyncqueue')) {
+  if (lower.startsWith('src/context/') || lower.includes('offlinesyncqueue') || lower.includes('clouddeltasync')) {
     return { layer: 'context', brainNote: 'DietContext' };
   }
 

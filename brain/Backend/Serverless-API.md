@@ -5,10 +5,22 @@
 Linked: [[00-Home]] | [[Architecture]] | [[Code-Graph]] | [[DietContext]] | [[PostgreSQL-Schema]] | [[Gemini-Recognition-Swarm]] | [[Key-Pool-Router]] | [[Atwater-Verifier]] | [[Adaptive-TDEE-EWMA]] | [[Today-Dashboard]] | [[AI-Meal-Scan]] | [[Food-Search-Catalog]] | [[Metabolism-Coach]] | [[Profile-and-Support]] | [[Admin-Console]]
 
 ## Source Files
+- `VibeDiet/src/worker/index.ts` (Cloudflare Workers Hono Edge Router & Static Assets)
+- `VibeDiet/src/worker/routes/health.ts` (Worker & Supabase HTTP Health Probe)
+- `VibeDiet/src/worker/routes/sync.ts` (Hybrid Local-First Delta Sync Engine)
+- `VibeDiet/src/worker/routes/admin.ts` (Zero-Trust Edge Admin Overview)
 - `VibeDiet/netlify/functions/v1.mts` (Production Netlify Consumer Serverless Router)
 - `VibeDiet/netlify/functions/admin.mts` (Production Netlify Admin Serverless Router)
 - `VibeDiet/src/routes/v1.ts` (Local / Express Parity Router)
 - `VibeDiet/server.ts` (Express Entrypoint, Helmet CSP, CORS, Rate Limiters)
+
+## Edge & Hybrid Sync Routes (`/v1/sync/*` & `/v1/health` — `src/worker/`)
+| Method & Path | Connected Feature / Engine | Persisted Tables ([[PostgreSQL-Schema]]) |
+| :--- | :--- | :--- |
+| `GET /v1/health` | Edge Diagnostic Probe | Cloudflare Workers Runtime & Supabase HTTP reachability |
+| `POST /v1/sync/push` | [[DietContext]] → Hybrid Delta Outbox Sync | `vibe_meal_sync`, `vibe_weight_sync` |
+| `GET /v1/sync/pull` | [[DietContext]] → Remote Hydration (Anti-ITP) | `vibe_meal_sync`, `vibe_weight_sync` |
+| `GET /v1/admin/overview` | [[Admin-Console]] → Edge Telemetry Gate | `ADMIN_ACCESS_TOKEN` Timing-Safe Auth Gate |
 
 ## Consumer Routes (`/v1/*` — `v1.mts` & `src/routes/v1.ts`)
 | Method & Path | Connected Feature / Engine | Persisted Tables ([[PostgreSQL-Schema]]) |

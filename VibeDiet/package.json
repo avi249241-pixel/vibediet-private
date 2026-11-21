@@ -20,7 +20,9 @@
     "netlify:sync": "tsx scripts/sync-netlify-drop.ts",
     "netlify:drop": "tsx scripts/sync-netlify-drop.ts --force",
     "netlify:watch": "tsx scripts/sync-netlify-drop.ts --watch",
-    "brain:sync": "tsx scripts/sync-brain-graph.ts"
+    "brain:sync": "tsx scripts/sync-brain-graph.ts",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@google/genai": "^1.0.0",
@@ -31,6 +33,7 @@
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
+    "hono": "^4.7.2",
     "lucide-react": "^0.475.0",
     "motion": "^14.14.0",
     "pg": "^8.23.1",
@@ -55,7 +58,8 @@
     "typescript": "^5.8.2",
     "vite": "^6.1.0",
     "vite-plugin-singlefile": "^2.1.0",
-    "vitest": "^3.0.5"
+    "vitest": "^3.0.5",
+    "wrangler": "^3.109.2"
   },
   "engines": {
     "node": ">=20.0.0"
