@@ -62,7 +62,7 @@ flowchart LR
   Serverless_API -->|3 imports| Food_Search_Catalog
   Serverless_API -->|4 imports| Gemini_Recognition_Swarm
   Serverless_API -->|2 imports| Key_Pool_Router
-  Serverless_API -->|4 imports| PostgreSQL_Schema
+  Serverless_API -->|3 imports| PostgreSQL_Schema
   Serverless_API -->|1 imports| Profile_and_Support
   Today_Dashboard -->|1 imports| Admin_Console
   Today_Dashboard -->|3 imports| AI_Meal_Scan
@@ -135,7 +135,7 @@ flowchart LR
 | `src/worker/env.ts` | `api` | [[Serverless-API]] | 0 | — |
 | `src/worker/index.ts` | `api` | [[Serverless-API]] | 6 | [[Admin-Console]] |
 | `src/worker/routes/admin.ts` | `api` | [[Admin-Console]] | 1 | [[Serverless-API]] |
-| `src/worker/routes/billing.ts` | `api` | [[Serverless-API]] | 2 | [[PostgreSQL-Schema]] |
+| `src/worker/routes/billing.ts` | `api` | [[Serverless-API]] | 2 | — |
 | `src/worker/routes/health.ts` | `api` | [[Serverless-API]] | 1 | — |
 | `src/worker/routes/sync.ts` | `api` | [[Serverless-API]] | 2 | — |
 | `src/worker/supabaseAdmin.ts` | `api` | [[Serverless-API]] | 1 | — |

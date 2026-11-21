@@ -17,9 +17,6 @@
     "sweeper": "tsx scripts/sweeper.ts",
     "swarm": "tsx scripts/swarm-orchestrator.ts",
     "typecheck": "tsc --noEmit",
-    "netlify:sync": "tsx scripts/sync-netlify-drop.ts",
-    "netlify:drop": "tsx scripts/sync-netlify-drop.ts --force",
-    "netlify:watch": "tsx scripts/sync-netlify-drop.ts --watch",
     "brain:sync": "tsx scripts/sync-brain-graph.ts",
     "cf:dev": "wrangler dev",
     "cf:deploy": "npm run build && wrangler deploy"

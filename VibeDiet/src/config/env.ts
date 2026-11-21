@@ -1,5 +1,3 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { z } from 'zod';
 
 const EnvironmentSchema = z.object({
@@ -38,36 +36,59 @@ export type AppEnvironment = z.infer<typeof EnvironmentSchema>;
 
 function loadDotEnvFile(): Record<string, string> {
   const envMap: Record<string, string> = {};
-  const possiblePaths = [
-    path.resolve(process.cwd(), '.env'),
-    path.resolve(process.cwd(), 'VibeDiet/.env'),
-  ];
 
-  for (const envPath of possiblePaths) {
-    if (fs.existsSync(envPath)) {
-      try {
-        const content = fs.readFileSync(envPath, 'utf8');
-        for (const line of content.split(/\r?\n/)) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith('#')) continue;
-          const clean = trimmed.replace(/^(\$env:|export\s+)/, '');
-          const eqIdx = clean.indexOf('=');
-          if (eqIdx !== -1) {
-            const k = clean.slice(0, eqIdx).trim();
-            const v = clean.slice(eqIdx + 1).trim().replace(/^['"]+|['"]+$/g, '');
-            if (k) {
-              envMap[k] = v;
-              if (typeof process !== 'undefined' && process.env && !process.env[k]) {
-                process.env[k] = v;
+  // Strictly guard server-only .env loading so browser client builds never touch Node built-ins
+  if (
+    typeof window !== 'undefined' ||
+    typeof process === 'undefined' ||
+    !process.versions?.node
+  ) {
+    return envMap;
+  }
+
+  try {
+    const fs = typeof (process as any).getBuiltinModule === 'function'
+      ? (process as any).getBuiltinModule('node:fs')
+      : null;
+    const path = typeof (process as any).getBuiltinModule === 'function'
+      ? (process as any).getBuiltinModule('node:path')
+      : null;
+
+    if (!fs || !path) return envMap;
+
+    const possiblePaths = [
+      path.resolve(process.cwd(), '.env'),
+      path.resolve(process.cwd(), 'VibeDiet/.env'),
+    ];
+
+    for (const envPath of possiblePaths) {
+      if (fs.existsSync(envPath)) {
+        try {
+          const content = fs.readFileSync(envPath, 'utf8');
+          for (const line of content.split(/\r?\n/)) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith('#')) continue;
+            const clean = trimmed.replace(/^(\$env:|export\s+)/, '');
+            const eqIdx = clean.indexOf('=');
+            if (eqIdx !== -1) {
+              const k = clean.slice(0, eqIdx).trim();
+              const v = clean.slice(eqIdx + 1).trim().replace(/^['"]+|['"]+$/g, '');
+              if (k) {
+                envMap[k] = v;
+                if (typeof process !== 'undefined' && process.env && !process.env[k]) {
+                  process.env[k] = v;
+                }
               }
             }
           }
+          break;
+        } catch {
+          // Fall back gracefully if unreadable
         }
-        break;
-      } catch {
-        // Fall back gracefully if unreadable
       }
     }
+  } catch {
+    // Non-fatal fallback
   }
 
   return envMap;

@@ -369,11 +369,13 @@ export function queueWeightDelta(
   return enqueueDeltaOutbox('weight', record).catch(() => 'fallback-id');
 }
 
+// In-flight promise lock to prevent concurrent flush calls from sending duplicate push requests
+let flushInFlight: Promise<{ synced: number; failed: number }> | null = null;
+
 /**
- * Flushes pending delta mutations to the edge sync endpoint POST /v1/sync/push.
- * Returns { synced, failed } count.
+ * Internal executor for flushing pending delta mutations to POST /v1/sync/push.
  */
-export async function flushDeltaOutbox(token?: string): Promise<{ synced: number; failed: number }> {
+async function executeFlush(token?: string): Promise<{ synced: number; failed: number }> {
   // If no bearer token or in local guest mode, keep outbox queued without failing
   if (!token || !token.trim() || token.startsWith('uid:usr_') || token.startsWith('uid:guest')) {
     return { synced: 0, failed: 0 };
@@ -427,12 +429,33 @@ export async function flushDeltaOutbox(token?: string): Promise<{ synced: number
       return { synced: processedIds.length, failed: 0 };
     }
 
-    // 401 Unauthorized or 503 Supabase not configured: keep items in outbox
+    // 401 Unauthorized, 502 Database error, or 503 Supabase not configured: keep items in outbox
     return { synced: 0, failed: processedIds.length };
   } catch (err) {
     // Network failure: preserve outbox
     return { synced: 0, failed: processedIds.length };
   }
+}
+
+/**
+ * Flushes pending delta mutations to the edge sync endpoint POST /v1/sync/push.
+ * Returns { synced, failed } count.
+ * Uses an in-flight promise lock (mutex) to coalesce concurrent calls onto a single request.
+ */
+export async function flushDeltaOutbox(token?: string): Promise<{ synced: number; failed: number }> {
+  if (flushInFlight) {
+    return flushInFlight;
+  }
+
+  flushInFlight = (async () => {
+    try {
+      return await executeFlush(token);
+    } finally {
+      flushInFlight = null;
+    }
+  })();
+
+  return flushInFlight;
 }
 
 /**

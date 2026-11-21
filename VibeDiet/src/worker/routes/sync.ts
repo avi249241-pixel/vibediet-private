@@ -67,6 +67,7 @@ syncRouter.post('/push', async (c) => {
   };
 
   const syncedAt = new Date().toISOString();
+  let syncError: any = null;
 
   // Upsert meal delta records
   if (meals.length > 0) {
@@ -83,11 +84,12 @@ syncRouter.post('/push', async (c) => {
       syncedCounts.meals = meals.length;
     } else {
       console.warn('[SyncPush] Meal upsert error:', mealError);
+      syncError = mealError;
     }
   }
 
   // Upsert weight delta records
-  if (weights.length > 0) {
+  if (!syncError && weights.length > 0) {
     const records = weights.map((w: any) => ({
       ...w,
       user_id: user.id,
@@ -101,7 +103,12 @@ syncRouter.post('/push', async (c) => {
       syncedCounts.weights = weights.length;
     } else {
       console.warn('[SyncPush] Weight upsert error:', weightError);
+      syncError = weightError;
     }
+  }
+
+  if (syncError) {
+    return c.json({ success: false, error: 'Database sync failed' }, 502);
   }
 
   return c.json({

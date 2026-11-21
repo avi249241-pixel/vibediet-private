@@ -36,24 +36,20 @@ Earlier iterations explored Railway/Docker (`e14084b` pruned) and Netlify Drop (
 
 ## 3. Completed & Verified State
 
-* **Brain & Graph Automation:** `scripts/sync-brain-graph.ts` indexes **105 modules**, **20 notes**, and **489 wikilinks** (`0` broken, `0` orphans).
+* **Brain & Graph Automation:** `scripts/sync-brain-graph.ts` indexes **105 modules**, **20 notes**, and **488 wikilinks** (`0` broken, `0` orphans).
 * **TypeScript & Unit/Integration Suite:** `npx tsc --noEmit` passes with **0 errors**; Vitest passes **23/23 test suites (163/163 tests)**.
-* **Build & Secret Hygiene:** `npm run build` + `npm run scan` verifies **0 leaked secrets** across **167 files** in `dist/` (note: main `index-*.js` chunk is currently `580.82 kB` and needs splitting back under `500 kB`).
-* **Full 3-Batch Code Review Completed:** Audited `wrangler.toml`, `src/worker/*`, `src/vision/*`, and `src/services/cloudDeltaSync.ts` line-by-line and queued 6 targeted pre-launch fixes below.
+* **Build & Secret Hygiene:** `npm run build` + `npm run scan` verifies **0 leaked secrets** across **173 files** in `dist/`. Main `index-*.js` chunk reduced to **316.28 kB** (well under `500 kB` threshold) via isolated `vendor-food-catalog` chunk. Standalone offline `dist/VibeDiet-App.html` single-file bundle verified.
+* **Full-Stack 6-Fix Audit Implemented & Verified:**
+  1. *Billing RLS & Auth Hardening (`src/worker/routes/billing.ts`):* Switched tier upgrade to `getSupabaseAdmin(env)` bypassing RLS; verifies Bearer JWT when present; requires `env.SESSION_SECRET` outside tests.
+  2. *Atomic Sync Error Status (`src/worker/routes/sync.ts`):* Returns HTTP `502` on Supabase upsert failures so client outbox retains failed delta mutations for retry.
+  3. *Worker Cron, CORS & Admin Keys (`src/worker/index.ts`, `src/worker/routes/admin.ts`):* Pings `${supabaseUrl}/rest/v1/vibe_users?select=id&limit=1` in `scheduled()` for authentic DB activity; restricted `cors()` origins; sanitized 500 error catch block; dynamic Gemini key telemetry in `/v1/admin/overview`.
+  4. *Outbox Concurrency Mutex (`src/services/cloudDeltaSync.ts`):* Added `flushInFlight` promise lock around `flushDeltaOutbox()` to coalesce concurrent sync triggers and prevent duplicate push requests.
+  5. *Bundle Optimization & Node Built-in Leak Prevention (`vite.config.ts`, `src/config/env.ts`, `src/vision/`):* Isolated `vendor-food-catalog` chunk in Vite Rollup split; unified `computeResolvedMacros()` across resolver and index; dynamically resolved `node:fs`/`node:path` via `process.getBuiltinModule` eliminating all Vite browser externalization warnings.
+  6. *Repo & CI Hygiene:* Pruned dead legacy host files (`.netlify`, `netlify.toml`, `vercel.json`, `api/index.ts`, `scripts/sync-netlify-drop.*`, duplicate `VibeDiet/.github/`), cleaned dead Netlify sync npm scripts.
 
 ---
 
-## 4. Open Pre-Launch Fixes & Deployment Tasks
-
-### A. Code Fixes Ready to Apply (1 Antigravity Turn)
-1. **Billing RLS & Auth Hardening (`src/worker/routes/billing.ts`):** Switch `updateSupabaseUserTier()` from anon `getSupabaseClient()` to `getSupabaseAdmin(env)` (`SUPABASE_SERVICE_ROLE_KEY`) so Postgres RLS permits updating `vibe_users.tier`; verify Bearer JWT when present; require `env.SESSION_SECRET` outside tests.
-2. **Atomic Sync Error Status (`src/worker/routes/sync.ts`):** Return HTTP `502` on Supabase `.upsert()` errors instead of HTTP `200` so the client outbox retains failed mutations for retry.
-3. **Worker Cron, CORS & Admin Keys (`src/worker/index.ts`, `src/worker/routes/admin.ts`):** Ping `${supabaseUrl}/rest/v1/vibe_users?select=id&limit=1` in `scheduled()` for genuine DB activity; restrict `cors()` origins; sanitize 500 JSON responses; report real Gemini key pool counts in `/v1/admin/overview`.
-4. **Outbox Mutex (`src/services/cloudDeltaSync.ts`):** Add `flushInFlight` promise lock around `flushDeltaOutbox()` to prevent duplicate concurrent `POST /v1/sync/push` requests.
-5. **Bundle Size & Node Built-In Cleanup (`vite.config.ts`, `src/config/env.ts`, `src/vision/`):** Split `foodCatalogService` into a separate `manualChunks` chunk (`vendor-food-catalog`) to drop `index-*.js` below `500 kB`, extract shared `computeResolvedMacros()` helper, and guard `node:fs`/`node:path` in `src/config/env.ts` so Vite emits zero browser externalization warnings.
-6. **Repo & CI Hygiene:** Remove dead legacy host files (`.netlify/state.json`, `netlify.toml`, `vercel.json`, `api/index.ts`, `scripts/sync-netlify-drop.*`, nested `VibeDiet/.github/`), compress `public/sample-meal-bowl.jpg` (`1.02 MB`), and set `defaults.run.working-directory: VibeDiet` in root `.github/workflows/ci.yml`.
-
-### B. Environment & Cloudflare Production Launch
+## 4. Environment & Cloudflare Production Launch
 1. **Upgrade Node.js to v22.12.0+ LTS:** Current local machine runs Node `v20.18.0`, while `wrangler@4.166.0` requires Node `>= 22.12.0`.
 2. **Authenticate & Push Secrets:** Set `CLOUDFLARE_API_TOKEN` (or run `npx wrangler login`), upload `.env` secrets via `npx wrangler secret bulk .env`, and deploy via `npm run cf:deploy`.
 3. **Post-Deploy Verification:** Whitelist the live `https://vibediet-app.<subdomain>.workers.dev` URL in **Supabase Dashboard → Authentication → URL Configuration**, then verify Google OAuth login, AI meal scan persistence, offline sync flush, `/admin` auth gate, and Razorpay Test UPI checkout.

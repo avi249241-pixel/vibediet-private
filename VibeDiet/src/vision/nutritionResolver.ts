@@ -258,6 +258,59 @@ export function mapOilLevelToFatCategory(oilLevel: OilLevel): CookingFatCategory
   }
 }
 
+export interface ResolvedMacrosResult {
+  grams: number;
+  protein: number;
+  carbs: number;
+  baseFat: number;
+  totalFat: number;
+  oilFatGramsAdded: number;
+  fiber: number;
+  sugar: number;
+  sodium: number;
+  netCarbs: number;
+  calculatedCalories: number;
+}
+
+/**
+ * Shared deterministic macro and Atwater calculation engine.
+ * Scales density by portion mass, adds cooking oil/ghee fat grams,
+ * and reconciles energy strictly via 4P + 4netCarbs + 9F = kcal.
+ */
+export function computeResolvedMacros(
+  density: NutrientDensity,
+  grams: number,
+  oilLevel: OilLevel
+): ResolvedMacrosResult {
+  const safeGrams = Math.max(1, Math.round(grams));
+  const protein = Number((density.proteinPerGram * safeGrams).toFixed(1));
+  const carbs = Number((density.carbsPerGram * safeGrams).toFixed(1));
+  const baseFat = Number((density.baseFatPerGram * safeGrams).toFixed(1));
+  const fiber = Number((density.fiberPerGram * safeGrams).toFixed(1));
+  const sugar = Number(((density.sugarPerGram ?? 0) * safeGrams).toFixed(1));
+  const sodium = Math.round((density.sodiumPerGram ?? 0) * safeGrams);
+
+  const oilFatGramsAdded = OIL_FAT_GRAMS_MAP[oilLevel] ?? 0.0;
+  const totalFat = Number((baseFat + oilFatGramsAdded).toFixed(1));
+
+  const netCarbs = Math.max(0, Number((carbs - fiber).toFixed(1)));
+  const calculatedCalories = Math.round(4 * protein + 4 * netCarbs + 9 * totalFat);
+
+  return {
+    grams: safeGrams,
+    protein,
+    carbs,
+    baseFat,
+    totalFat,
+    oilFatGramsAdded,
+    fiber,
+    sugar,
+    sodium,
+    netCarbs,
+    calculatedCalories,
+  };
+}
+
 /**
  * Resolves a single DetectedFoodItem into an authoritative, Atwater-reconciled ResolvedFoodItem.
  * Deterministically adds cooking oil / ghee fat grams and ensures 4P + 4C + 9F === kcal.
@@ -291,40 +344,26 @@ export function resolveFoodItem(item: DetectedFoodItem): ResolvedFoodItem {
     density = getDefaultNutrientDensity(item.name, item.cookingMethod);
   }
 
-  // Scale base macros to portion mass
-  const baseProtein = Number((density.proteinPerGram * grams).toFixed(1));
-  const baseCarbs = Number((density.carbsPerGram * grams).toFixed(1));
-  const baseFat = Number((density.baseFatPerGram * grams).toFixed(1));
-  const fiber = Number((density.fiberPerGram * grams).toFixed(1));
-  const sugar = Number(((density.sugarPerGram ?? 0) * grams).toFixed(1));
-  const sodium = Math.round((density.sodiumPerGram ?? 0) * grams);
-
-  // Deterministic oil / ghee fat addition
-  const oilFatGramsAdded = OIL_FAT_GRAMS_MAP[item.oilLevel] ?? 0.0;
-  const totalFat = Number((baseFat + oilFatGramsAdded).toFixed(1));
-
-  // Strict Atwater reconciliation
-  const netCarbs = Math.max(0, Number((baseCarbs - fiber).toFixed(1)));
-  const calculatedCalories = Math.round(4 * baseProtein + 4 * netCarbs + 9 * totalFat);
-
+  // Use single shared macro and Atwater calculation engine
+  const macros = computeResolvedMacros(density, grams, item.oilLevel);
   const cookingFatCategory = mapOilLevelToFatCategory(item.oilLevel);
 
   const normalized = normalizeFoodItem({
     id: item.id || `item-${Math.random().toString(36).slice(2, 9)}`,
     name: item.name,
-    grams,
+    grams: macros.grams,
     tier,
     tierSource,
     confidence: item.confidence ?? 0.85,
-    reportedCalories: calculatedCalories,
-    calculatedCalories,
-    calories: calculatedCalories,
-    protein: baseProtein,
-    carbs: baseCarbs,
-    fat: totalFat,
-    fiber,
-    sugar,
-    sodium,
+    reportedCalories: macros.calculatedCalories,
+    calculatedCalories: macros.calculatedCalories,
+    calories: macros.calculatedCalories,
+    protein: macros.protein,
+    carbs: macros.carbs,
+    fat: macros.totalFat,
+    fiber: macros.fiber,
+    sugar: macros.sugar,
+    sodium: macros.sodium,
     cookingFatCategory,
     referenceAnchor: item.referenceAnchor,
     fdcId,
@@ -335,8 +374,8 @@ export function resolveFoodItem(item: DetectedFoodItem): ResolvedFoodItem {
     cookingMethod: item.cookingMethod,
     oilLevel: item.oilLevel,
     baseFoodName,
-    oilFatGramsAdded,
-    baseGrams: grams,
+    oilFatGramsAdded: macros.oilFatGramsAdded,
+    baseGrams: macros.grams,
     baseProteinPerGram: density.proteinPerGram,
     baseCarbsPerGram: density.carbsPerGram,
     baseFatPerGram: density.baseFatPerGram,

@@ -19,11 +19,22 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-motion': ['motion'],
-          'vendor-lucide': ['lucide-react'],
-          'vendor-supabase': ['@supabase/supabase-js'],
+        manualChunks(id) {
+          if (id.includes('foodCatalogService')) {
+            return 'vendor-food-catalog';
+          }
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/motion')) {
+            return 'vendor-motion';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'vendor-lucide';
+          }
+          if (id.includes('node_modules/@supabase')) {
+            return 'vendor-supabase';
+          }
         },
       },
     },

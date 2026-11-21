@@ -37,27 +37,43 @@ adminRouter.get('/overview', async (c) => {
 
   const timestamp = new Date().toISOString();
 
+  const rawKeyString =
+    (c.env?.GEMINI_API_KEYS as string | undefined) ||
+    (typeof process !== 'undefined' ? process.env.GEMINI_API_KEYS : undefined) ||
+    (c.env?.GEMINI_API_KEY as string | undefined) ||
+    (typeof process !== 'undefined' ? process.env.GEMINI_API_KEY : undefined) ||
+    '';
+
+  const keyList = rawKeyString
+    .split(/[,;\n]+/)
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+
+  const configuredCount = keyList.length > 0 ? keyList.length : (rawKeyString.trim() ? 1 : 0);
+  const activeKeys = configuredCount > 0 ? configuredCount : 1;
+  const totalKeys = configuredCount > 0 ? configuredCount : 1;
+
   return c.json({
     system: {
       status: 'operational',
       timestamp,
       rssMb: memUsage,
       memoryRssMb: memUsage,
-      activeKeys: 1,
-      totalKeys: 1,
+      activeKeys,
+      totalKeys,
       runtime: 'cloudflare-workers',
     },
     keys: {
-      active: 1,
-      total: 1,
+      active: activeKeys,
+      total: totalKeys,
       status: 'healthy',
     },
     keyPool: {
-      configuredCount: 1,
-      activeCount: 1,
+      configuredCount,
+      activeCount: activeKeys,
       cooldownCount: 0,
       revokedCount: 0,
-      poolSize: 1,
+      poolSize: totalKeys,
       slots: [],
     },
     keySlots: [],

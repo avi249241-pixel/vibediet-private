@@ -2,6 +2,7 @@ import { normalizeFoodItem } from '../shared/physics/atwater.js';
 import { FoodItemEntry } from '../types/index.js';
 import { CloudStructuredVisionEngine } from './cloudStructuredEngine.js';
 import {
+  computeResolvedMacros,
   findMatchingCatalogItem,
   getDefaultNutrientDensity,
   mapOilLevelToFatCategory,
@@ -87,36 +88,22 @@ export function recalculateItemNutrition(
     }
   }
 
-  // Scale base macros to portion mass
-  const protein = Number((density.proteinPerGram * grams).toFixed(1));
-  const carbs = Number((density.carbsPerGram * grams).toFixed(1));
-  const baseFat = Number((density.baseFatPerGram * grams).toFixed(1));
-  const fiber = Number((density.fiberPerGram * grams).toFixed(1));
-  const sugar = Number(((density.sugarPerGram ?? 0) * grams).toFixed(1));
-  const sodium = Math.round((density.sodiumPerGram ?? 0) * grams);
-
-  // Deterministic oil / ghee fat addition
-  const oilFatGramsAdded = OIL_FAT_GRAMS_MAP[newOilLevel] ?? 0.0;
-  const totalFat = Number((baseFat + oilFatGramsAdded).toFixed(1));
-
-  // Strict Atwater math: 4P + 4C + 9F === kcal
-  const netCarbs = Math.max(0, Number((carbs - fiber).toFixed(1)));
-  const calculatedCalories = Math.round(4 * protein + 4 * netCarbs + 9 * totalFat);
-
+  // Use single shared macro and Atwater calculation engine
+  const macros = computeResolvedMacros(density, grams, newOilLevel);
   const cookingFatCategory = mapOilLevelToFatCategory(newOilLevel);
 
   const normalized = normalizeFoodItem({
     ...item,
-    grams,
-    reportedCalories: calculatedCalories,
-    calculatedCalories,
-    calories: calculatedCalories,
-    protein,
-    carbs,
-    fat: totalFat,
-    fiber,
-    sugar,
-    sodium,
+    grams: macros.grams,
+    reportedCalories: macros.calculatedCalories,
+    calculatedCalories: macros.calculatedCalories,
+    calories: macros.calculatedCalories,
+    protein: macros.protein,
+    carbs: macros.carbs,
+    fat: macros.totalFat,
+    fiber: macros.fiber,
+    sugar: macros.sugar,
+    sodium: macros.sodium,
     cookingFatCategory,
   });
 
@@ -125,8 +112,8 @@ export function recalculateItemNutrition(
     cookingMethod,
     oilLevel: newOilLevel,
     baseFoodName,
-    oilFatGramsAdded,
-    baseGrams: grams,
+    oilFatGramsAdded: macros.oilFatGramsAdded,
+    baseGrams: macros.grams,
     baseProteinPerGram: density.proteinPerGram,
     baseCarbsPerGram: density.carbsPerGram,
     baseFatPerGram: density.baseFatPerGram,
@@ -143,6 +130,7 @@ export {
   resolveDetectedItems,
   findMatchingCatalogItem,
   getDefaultNutrientDensity,
+  computeResolvedMacros,
   mapOilLevelToFatCategory,
 };
 

@@ -5,7 +5,7 @@
  * (zero heavy Node SDKs, ensuring Cloudflare Worker / Netlify Edge CPU stays < 1ms).
  */
 
-import { getSupabaseClient } from '../../services/supabaseClient.js';
+import { getSupabaseAdmin } from '../supabaseAdmin.js';
 
 export interface BillingEnv {
   RAZORPAY_KEY_ID?: string;
@@ -144,9 +144,14 @@ export async function verifyRazorpayWebhookSignature(
 
 /**
  * Updates user tier in Supabase if configured.
+ * Uses Supabase Admin client with SUPABASE_SERVICE_ROLE_KEY to bypass RLS.
  */
-export async function updateSupabaseUserTier(userId: string, tier: 'free' | 'pro' = 'pro'): Promise<boolean> {
-  const supabase = getSupabaseClient();
+export async function updateSupabaseUserTier(
+  userId: string,
+  tier: 'free' | 'pro' = 'pro',
+  env: BillingEnv = process.env as BillingEnv
+): Promise<boolean> {
+  const supabase = getSupabaseAdmin(env as any);
   if (!supabase) return false;
   try {
     const { error } = await supabase
@@ -165,8 +170,15 @@ export async function updateSupabaseUserTier(userId: string, tier: 'free' | 'pro
  */
 export async function signProStatusPayload(
   userId: string,
-  secret: string = process.env.SESSION_SECRET || 'vibediet-signed-session-secret-key-38bdf8'
+  secret?: string
 ): Promise<string> {
+  const resolvedSecret = secret || process.env.SESSION_SECRET;
+  if (!resolvedSecret) {
+    if (!process.env.VITEST && process.env.NODE_ENV !== 'test') {
+      throw new Error('SESSION_SECRET is required to sign Pro status tokens in production');
+    }
+  }
+  const finalSecret = resolvedSecret || 'vibediet-signed-session-secret-key-38bdf8';
   const payloadObj = {
     uid: userId,
     tier: 'pro',
@@ -177,7 +189,7 @@ export async function signProStatusPayload(
   const payloadStr = JSON.stringify(payloadObj);
   const enc = new TextEncoder();
   const b64 = btoa(payloadStr).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const sigHex = await computeHmacSha256Hex(secret, b64);
+  const sigHex = await computeHmacSha256Hex(finalSecret, b64);
   return `${b64}.${sigHex}`;
 }
 
@@ -213,7 +225,28 @@ export async function handleCreateOrder(
 
   const planKey: PlanKey = body.plan === 'pro_monthly' ? 'pro_monthly' : 'pro_annual';
   const plan = AUTHORITATIVE_PLANS[planKey];
-  const userId = body.userId || 'usr_anonymous';
+
+  // Verify Bearer token if present to authenticate the user authoritatively
+  const authHeader = request.headers.get('Authorization') || request.headers.get('authorization') || '';
+  let verifiedUserId: string | undefined;
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      try {
+        const supabase = getSupabaseAdmin(env as any);
+        if (supabase) {
+          const { data, error } = await supabase.auth.getUser(token);
+          if (!error && data?.user?.id) {
+            verifiedUserId = data.user.id;
+          }
+        }
+      } catch (err) {
+        console.warn('[Billing] Bearer auth check warning:', err);
+      }
+    }
+  }
+
+  const userId = verifiedUserId || body.userId || 'usr_anonymous';
 
   const basicAuth = btoa(`${keyId}:${keySecret}`);
   const orderPayload = {
@@ -312,12 +345,34 @@ export async function handleVerifyPayment(
     );
   }
 
-  // Update Supabase user tier to pro
-  if (userId) {
-    await updateSupabaseUserTier(userId, 'pro');
+  // Verify Bearer token if present to authenticate the user authoritatively
+  const authHeader = request.headers.get('Authorization') || request.headers.get('authorization') || '';
+  let verifiedUserId: string | undefined;
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.slice(7).trim();
+    if (token) {
+      try {
+        const supabase = getSupabaseAdmin(env as any);
+        if (supabase) {
+          const { data, error } = await supabase.auth.getUser(token);
+          if (!error && data?.user?.id) {
+            verifiedUserId = data.user.id;
+          }
+        }
+      } catch (err) {
+        console.warn('[Billing] Bearer auth check warning:', err);
+      }
+    }
   }
 
-  const signedProToken = await signProStatusPayload(userId || 'usr_verified_pro');
+  const targetUserId = verifiedUserId || userId || 'usr_verified_pro';
+
+  // Update Supabase user tier to pro using service role key (RLS bypass)
+  if (targetUserId) {
+    await updateSupabaseUserTier(targetUserId, 'pro', env);
+  }
+
+  const signedProToken = await signProStatusPayload(targetUserId, env.SESSION_SECRET);
 
   return new Response(
     JSON.stringify({
@@ -382,7 +437,7 @@ export async function handleWebhook(
   const userId = payment?.notes?.userId || payment?.notes?.uid;
 
   if (userId && (event === 'payment.captured' || event === 'order.paid')) {
-    await updateSupabaseUserTier(userId, 'pro');
+    await updateSupabaseUserTier(userId, 'pro', env);
   }
 
   return new Response(
