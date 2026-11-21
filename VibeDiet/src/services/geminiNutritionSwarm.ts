@@ -4,6 +4,7 @@ import { ClarifyingQuestion } from '../shared/draftTypes.js';
 import { normalizeFoodItem } from '../utils/atwater.js';
 import { DEMO_INDIAN_FUSION_QUESTIONS, VERIFIED_USDA_FOODS } from '../data/mockData.js';
 import { searchUsdaLive } from './connectionsHub.js';
+import { createVisionEngine, resolveDetectedItems, VisionEngineProvider } from '../vision/index.js';
 
 export const SWARM_MODELS = {
   agent1: 'gemini-2.5-flash',
@@ -811,14 +812,126 @@ export function runAgent4CriticAndSanity(
 }
 
 // -----------------------------------------------------------------------------
+// VISION ENGINE DELEGATION: Swappable VisionEngine Pipeline
+// -----------------------------------------------------------------------------
+export async function runVisionEngineSwarm(
+  imageBase64: string,
+  mealHint?: string,
+  contextNote?: string,
+  onStageChange?: (stage: 'spatial_ocr' | 'parallel_fats_grounding' | 'atwater_verified') => void | Promise<void>,
+  provider: VisionEngineProvider = 'cloud-structured'
+): Promise<SwarmRecognitionResult> {
+  const startTime = Date.now();
+
+  if (onStageChange) {
+    try {
+      await onStageChange('spatial_ocr');
+    } catch {}
+  }
+
+  const engine = createVisionEngine(provider);
+  const engineResult = await engine.analyzeMealImage({
+    imageBase64,
+    mealHint,
+    contextNote,
+  });
+
+  if (onStageChange) {
+    try {
+      await onStageChange('parallel_fats_grounding');
+    } catch {}
+  }
+
+  const resolvedItems = resolveDetectedItems(engineResult.items);
+
+  if (onStageChange) {
+    try {
+      await onStageChange('atwater_verified');
+    } catch {}
+  }
+
+  const sanitizedItems = runAgent4CriticAndSanity(resolvedItems);
+
+  // Generate targeted clarifying questions based on detected food items and oil levels
+  const questions: ClarifyingQuestion[] = engineResult.items.map((item, idx) => {
+    const targetId = item.id || `item-${idx + 1}`;
+    return {
+      id: `q-oil-${targetId}`,
+      targetItemId: targetId,
+      question: `What cooking fat or ghee level was used for ${item.name}?`,
+      selectedOptionId: `opt-${item.oilLevel || 'standard'}`,
+      options: [
+        {
+          id: 'opt-none',
+          label: 'None / dry preparation (-45 kcal)',
+          calorieDelta: -45,
+          fatDeltaGrams: -5.0,
+          carbDeltaGrams: 0,
+          proteinDeltaGrams: 0,
+        },
+        {
+          id: 'opt-light',
+          label: 'Light spray / homestyle (-22.5 kcal)',
+          calorieDelta: -22.5,
+          fatDeltaGrams: -2.5,
+          carbDeltaGrams: 0,
+          proteinDeltaGrams: 0,
+        },
+        {
+          id: 'opt-standard',
+          label: 'Standard preparation (Baseline, +0 kcal)',
+          calorieDelta: 0,
+          fatDeltaGrams: 0,
+          carbDeltaGrams: 0,
+          proteinDeltaGrams: 0,
+        },
+        {
+          id: 'opt-heavy',
+          label: 'Heavy ghee tadka / restaurant (+45 kcal)',
+          calorieDelta: 45,
+          fatDeltaGrams: 5.0,
+          carbDeltaGrams: 0,
+          proteinDeltaGrams: 0,
+        },
+      ],
+    };
+  });
+
+  const latencyMs = Date.now() - startTime;
+  setSwarmLastExecutionLatency(latencyMs);
+
+  return {
+    mealTitle: engineResult.mealTitle || 'AI Vision Recognized Meal',
+    referenceAnchor: engineResult.referenceAnchor || 'none',
+    scanMode: 'plate_vision',
+    items: sanitizedItems,
+    questions: questions.length > 0 ? questions : DEMO_INDIAN_FUSION_QUESTIONS,
+    telemetry: {
+      latencyMs,
+      agents: {
+        agent1: provider,
+        agent2: 'nutrition-resolver',
+        agent3: 'food-catalog-service',
+        agent4: SWARM_MODELS.agent4,
+      },
+    },
+  };
+}
+
+// -----------------------------------------------------------------------------
 // SWARM ORCHESTRATOR: 4-Agent Pipeline Routed Through keyPoolRouter
 // -----------------------------------------------------------------------------
 export async function runGeminiNutritionSwarm(
   imageBase64: string,
   mealHint?: string,
   contextNote?: string,
-  onStageChange?: (stage: 'spatial_ocr' | 'parallel_fats_grounding' | 'atwater_verified') => void | Promise<void>
+  onStageChange?: (stage: 'spatial_ocr' | 'parallel_fats_grounding' | 'atwater_verified') => void | Promise<void>,
+  options?: { engine?: VisionEngineProvider; useVisionEngine?: boolean }
 ): Promise<SwarmRecognitionResult> {
+  if (options?.useVisionEngine || options?.engine) {
+    return runVisionEngineSwarm(imageBase64, mealHint, contextNote, onStageChange, options.engine);
+  }
+
   const startTime = Date.now();
 
   let mimeType = 'image/jpeg';

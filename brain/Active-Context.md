@@ -5,31 +5,34 @@
 Linked: [[00-Home]] | [[Architecture]] | [[Code-Graph]] | [[DietContext]] | [[Serverless-API]] | [[PostgreSQL-Schema]] | [[AI-Meal-Scan]] | [[Admin-Console]] | [[Profile-and-Support]]
 
 ## Current Focus
-Stage 1 Cloudflare Workers + Hono + Supabase HTTP + Hybrid Local-First Delta Sync Migration Complete:
-1. **Cloudflare Workers & Hono Edge Setup (`wrangler.toml` & `src/worker/`):** Configured Cloudflare Workers with Static Assets SPA routing (`[assets]`, `run_worker_first = ["/v1/*"]`), 3-day Supabase keep-alive cron (`0 3 */3 * *`), and modular Hono sub-routers (`/v1/health`, `/v1/admin/overview`, `/v1/sync/push`, `/v1/sync/pull`). Added `cf:dev` and `cf:deploy` scripts to `package.json`.
-2. **Supabase HTTP Admin (<1ms CPU):** Implemented zero-TCP HTTP Supabase admin client (`src/worker/supabaseAdmin.ts`) with `persistSession: false` and `autoRefreshToken: false` caching, maintaining strict edge worker performance.
-3. **Hybrid Local-First Delta Sync (`src/services/cloudDeltaSync.ts` & `DietContext.tsx`):** Engineered IndexedDB delta outbox queue with in-memory/localStorage fallback, sub-5ms local UI latency, compact ~120-byte delta payloads (`vibe_meal_sync`, `vibe_weight_sync`), push flushing on `online` and login, and remote delta pull hydration protecting iOS Safari users from 7-day ITP storage eviction.
-4. **Verification & Test Coverage:** Built comprehensive Vitest edge suite (`tests/cloudflareWorker.test.ts`, 14 tests passing) verifying 200 health, zero-trust 401 admin overview gate, sync push/pull authentication, and delta outbox lifecycle.
+Stage 2: Swappable VisionEngine Architecture & Edge-Native Razorpay Billing Complete:
+1. **Vision Perception Subsystem (`src/vision/`)**: Decoupled visual meal identification and portion/cooking analysis from nutritional ground truth. `CloudStructuredVisionEngine` uses a flat, concise schema with `gemini-2.5-flash` strictly identifying dishes, estimating portion mass anchored to scale references, cooking methods, and surface oil/ghee sheen (zero calorie/macro hallucination). `OnDeviceWasmVisionEngine` adapter interface ready for hot-swapping quantized `.onnx` models via OPFS model caching.
+2. **Deterministic Nutrition Resolver (`src/vision/nutritionResolver.ts`) & 0ms Recalculation**: Grounded visual items against `LOCAL_VERIFIED_CATALOG` (IFCT 2017 & USDA SR Legacy), deterministically adding cooking-oil fat grams (`none`: 0g, `light`: 2.5g, `standard`: 5.0g, `heavy`: 10.0g) and reconciling macros strictly via Atwater physics (`4P + 4C + 9F === kcal`). Provided client-side `recalculateItemNutrition()` helper executing in <1ms without network calls.
+3. **Edge-Native Razorpay Billing & Freemium Gate (`src/worker/routes/billing.ts` + UI)**: Built edge-native endpoints using pure Web Fetch API and Web Crypto HMAC-SHA256 (`/v1/billing/create-order`, `/v1/billing/verify`, `/v1/billing/webhook`). Defined authoritative server-side plans (`pro_monthly`: 14900 paise = ₹149, `pro_annual`: 99900 paise = ₹999). Wired clean Freemium tier gating (Free: 3 AI meal scans/day + full manual/barcode tracking; Pro: unlimited AI scans + adaptive TDEE coaching). Created `ProUpgradeModal.tsx` and integrated it into `ProfileScreen.tsx` (preserving `isLocalOrDev` E2E trigger).
+4. **Verification & Testing (`tests/stage2VisionAndBilling.test.ts` & `tests/stage2Vision.test.ts`)**: 23/23 Stage 2 unit tests passing (149/149 suite total). Zero TypeScript errors (`npx tsc --noEmit`), production bundle built, and 0 leaked secrets.
 
 ## Active Files (Read/Edit Only These)
 - `AGENTS.md`: Strict agent operational rules & safeguards.
 - `brain/00-Home.md`, `brain/Architecture.md`, `brain/Active-Context.md`, `brain/Code-Graph.md`: Single unified root Obsidian vault.
-- `wrangler.toml`, `src/worker/env.ts`, `src/worker/index.ts`, `src/worker/supabaseAdmin.ts`, `src/worker/routes/*`: Cloudflare Workers & Hono edge architecture.
-- `src/services/cloudDeltaSync.ts`: Hybrid local-first delta sync service.
-- `src/context/DietContext.tsx`: Client state & non-blocking delta sync integration.
-- `tests/cloudflareWorker.test.ts`: Hono edge & delta sync Vitest test suite.
-- `netlify/functions/admin.mts` & `netlify/functions/v1.mts`: Zero-trust admin auth, honest 503 ping, `/v1/meals/photo`, `/v1/meals/parse`, `/v1/ai/analyze`.
-- `src/middleware/auth.ts`, `src/context/AuthContext.tsx`, `src/components/AdminDashboardScreen.tsx`, `src/components/ProfileScreen.tsx`: P0 security fixes & dev-only Pro demo gate.
-- `src/shared/physics/atwater.ts`, `src/lib/dataStore.ts`, `src/lib/mockFirestore.ts`, `src/components/DailyDiaryScreen.tsx`, `src/components/redesign/VibeDietDashboard.tsx`, `src/components/ManualEntryScreen.tsx`: `dateKey()`, `deriveTargets()`, future-date clamp, lazy catalog loading.
-- `tests/macroReconciliation.test.ts`, `tests/authMiddleware.test.ts`, `tests/adminEndpoints.test.ts`, `e2e/final-regression.spec.ts`: Security + math + E2E verification suites.
+- `src/vision/types.ts`: `VisionEngine`, `DetectedFoodItem`, `CookingMethod`, `OilLevel`, `OIL_FAT_GRAMS_MAP`, `ResolvedFoodItem`.
+- `src/vision/cloudStructuredEngine.ts`: `gemini-2.5-flash` with flat structured schema (zero calorie hallucination).
+- `src/vision/nutritionResolver.ts`: Catalog mapping, deterministic oil fat adjustments, strict Atwater macro reconciliation.
+- `src/vision/onDeviceWasmEngine.ts`: ONNX Runtime Web + OPFS model cache adapter interface.
+- `src/vision/index.ts`: `createVisionEngine()` factory and `recalculateItemNutrition()` helper.
+- `src/worker/routes/billing.ts`: Edge-native Razorpay billing, Web Crypto HMAC-SHA256, freemium daily quota gating.
+- `src/components/redesign/ProUpgradeModal.tsx`: Spatial frosted glass modal with 1-click/1-Escape close and plan selection.
+- `src/components/ProfileScreen.tsx`: Integrated `ProUpgradeModal` and preserved `isLocalOrDev` dev trigger.
+- `src/routes/v1.ts`: Mounted `/v1/billing/create-order`, `/v1/billing/verify`, `/v1/billing/webhook`.
+- `src/components/redesign/VibeDietAiScannerView.tsx`: Segmented oil/ghee selector, 0ms recalculation, per-item cards.
+- `tests/stage2VisionAndBilling.test.ts`: Perception schema, Atwater oil-level recalculation, 3-scan daily quota, Razorpay HMAC verification.
+- `tests/stage2Vision.test.ts`: VisionEngine architecture contracts & fallback tests.
 
 ## Recent Changes
-- **Stage 1 Cloudflare Workers + Hono + Delta Sync Migration:**
-  1. Configured `wrangler.toml` with `vibediet-app`, `main: ./src/worker/index.ts`, `[assets]` binding to `dist/`, and 3-day cron trigger.
-  2. Implemented Hono edge router (`src/worker/index.ts`) mounting `/v1/health`, `/v1/admin/overview`, and `/v1/sync/*`, with fallback to shared `v1Handler` and static assets.
-  3. Built `src/services/cloudDeltaSync.ts` with IndexedDB outbox queue, 120-byte delta payloads, and anti-ITP remote hydration.
-  4. Wired delta sync seamlessly into `DietContext.tsx` (`addManualMeal`, `deleteMeal`, `logScaleWeight`, `eraseAllUserData`, `handleOnline`, `syncFromBackend`).
-  5. Added 14 unit tests in `tests/cloudflareWorker.test.ts` (100% passing).
+- **Stage 2 Edge-Native Razorpay Billing & Freemium Gate Delivered:** Implemented `src/worker/routes/billing.ts` with pure Web standards, authoritative pricing, timing-safe HMAC-SHA256 signature verification, Supabase tier updates, and `ProUpgradeModal.tsx` portal integration.
+- **Stage 2 Vision Perception Pipeline Complete:** Shipped `src/vision/` modules, dynamic oil level selector in `VibeDietAiScannerView.tsx`, and verified Atwater $4P + 4C + 9F \equiv \text{kcal}$ invariant preservation across all oil levels.
+- **Full 5-Gate Verification Passed:** 149/149 Vitest tests passing, 0 TypeScript errors, production bundle built, and 0 secret leaks.
+
+## Recent Changes
 - **Full E2E & Netlify Functions Verification (100% Pass Across All 6 Suites):** Verified and fixed all 4 failing tests across desktop/mobile Playwright suites:
   1. Converted `nav-theme-toggle-btn` to accessible `div role="button"` to strictly satisfy 5-button `<header>` assertion (`EMPIRICAL-CHALLENGE 1` & `3`).
   2. Preserved `/` consumer root path in `App.tsx` on return from admin console (`CHALLENGE 2`).

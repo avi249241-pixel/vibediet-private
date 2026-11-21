@@ -8,6 +8,36 @@ import React, {
 } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import "./VibeDietTheme.css";
+import {
+  recalculateItemNutrition,
+  type OilLevel,
+  type CookingMethod,
+  OIL_FAT_GRAMS_MAP,
+} from "../../vision/index.js";
+
+export interface AiDraftFoodItem {
+  id: string;
+  name: string;
+  grams: number;
+  baseGrams?: number;
+  cookingMethod?: CookingMethod;
+  oilLevel?: OilLevel;
+  confidence?: number;
+  confidenceBadge?: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber?: number;
+  sugar?: number;
+  sodium?: number;
+  baseProteinPerGram?: number;
+  baseCarbsPerGram?: number;
+  baseFatPerGram?: number;
+  baseFiberPerGram?: number;
+  baseSugarPerGram?: number;
+  baseSodiumPerGram?: number;
+}
 
 export interface AiDraftItem {
   title: string;
@@ -17,6 +47,7 @@ export interface AiDraftItem {
   carbs: number;
   fat: number;
   confidenceTier: string;
+  items?: AiDraftFoodItem[];
 }
 
 export interface VibeDietAiScannerViewProps {
@@ -25,7 +56,7 @@ export interface VibeDietAiScannerViewProps {
   isProcessing: boolean;
   pipelineStage?: string;
   draftItem?: AiDraftItem | null;
-  onConfirmDraft: (multiplier: number, adjustedGrams: number) => void;
+  onConfirmDraft: (multiplier: number, adjustedGrams: number, items?: AiDraftFoodItem[]) => void;
   // Extended interactive actions for multimodal dictation & sample scan
   onSimulateSampleScan?: () => void;
   onTextSubmit?: (text: string) => void;
@@ -42,6 +73,53 @@ export interface VibeDietAiScannerViewProps {
 
 const multipliers = [0.5, 1, 1.5, 2] as const;
 const stages = ["Capture", "AI Vision", "Nutrition"] as const;
+
+export const OIL_LEVEL_OPTIONS: { id: OilLevel; label: string; grams: string }[] = [
+  { id: "none", label: "None", grams: "+0g" },
+  { id: "light", label: "Light", grams: "+2.5g" },
+  { id: "standard", label: "Standard", grams: "+5g" },
+  { id: "heavy", label: "Heavy", grams: "+10g" },
+];
+
+export function formatCookingMethod(method?: CookingMethod | string): string {
+  switch (method) {
+    case "steamed":
+      return "Steamed";
+    case "boiled":
+      return "Boiled";
+    case "tawa_roasted":
+      return "Tawa Roasted";
+    case "sauteed":
+      return "Sautéed";
+    case "deep_fried":
+      return "Deep Fried";
+    case "creamy_gravy":
+      return "Creamy Gravy";
+    default:
+      return "Prepared";
+  }
+}
+
+export function getItemConfidenceBadge(confidence?: number) {
+  const conf = confidence ?? 0.85;
+  const pct = Math.round(conf * 100);
+  if (pct >= 90) {
+    return {
+      text: `${pct}% High`,
+      className: "border-[rgba(16,185,129,0.2)] bg-[rgba(16,185,129,0.1)] text-[var(--emerald-text)]",
+    };
+  }
+  if (pct >= 75) {
+    return {
+      text: `${pct}% Med`,
+      className: "border-[rgba(245,158,11,0.2)] bg-[rgba(245,158,11,0.1)] text-[#B45309]",
+    };
+  }
+  return {
+    text: `${pct}% Est`,
+    className: "border-[rgba(244,63,94,0.2)] bg-[rgba(244,63,94,0.1)] text-[#F43F5E]",
+  };
+}
 
 const whole = (value: number) => Math.round(value).toLocaleString("en-US");
 const decimal = (value: number) => {
@@ -174,6 +252,79 @@ export default function VibeDietAiScannerView({
   const [error, setError] = useState<string | null>(null);
   const [multiplier, setMultiplier] = useState<number>(1);
   const [localTextInput, setLocalTextInput] = useState("");
+  const [foodItems, setFoodItems] = useState<AiDraftFoodItem[]>([]);
+
+  useEffect(() => {
+    if (draftItem?.items && draftItem.items.length > 0) {
+      setFoodItems(draftItem.items);
+    } else {
+      setFoodItems([]);
+    }
+  }, [draftItem?.items, draftItem?.title, draftItem?.grams, draftItem?.calories]);
+
+  const handleItemOilChange = (index: number, newOil: OilLevel) => {
+    setFoodItems((prev) => {
+      const next = [...prev];
+      const item = next[index];
+      if (!item) return prev;
+      const density =
+        item.baseProteinPerGram != null
+          ? {
+              proteinPerGram: item.baseProteinPerGram,
+              carbsPerGram: item.baseCarbsPerGram || 0,
+              baseFatPerGram: item.baseFatPerGram || 0,
+              fiberPerGram: item.baseFiberPerGram || 0,
+              sugarPerGram: item.baseSugarPerGram,
+              sodiumPerGram: item.baseSodiumPerGram,
+            }
+          : undefined;
+      const updated = recalculateItemNutrition(
+        item as any,
+        item.grams,
+        newOil,
+        density
+      );
+      next[index] = {
+        ...item,
+        ...updated,
+        oilLevel: newOil,
+      };
+      return next;
+    });
+  };
+
+  const handleItemGramsChange = (index: number, delta: number) => {
+    setFoodItems((prev) => {
+      const next = [...prev];
+      const item = next[index];
+      if (!item) return prev;
+      const newGrams = Math.max(10, Math.round(item.grams + delta));
+      const currentOil = item.oilLevel || "standard";
+      const density =
+        item.baseProteinPerGram != null
+          ? {
+              proteinPerGram: item.baseProteinPerGram,
+              carbsPerGram: item.baseCarbsPerGram || 0,
+              baseFatPerGram: item.baseFatPerGram || 0,
+              fiberPerGram: item.baseFiberPerGram || 0,
+              sugarPerGram: item.baseSugarPerGram,
+              sodiumPerGram: item.baseSodiumPerGram,
+            }
+          : undefined;
+      const updated = recalculateItemNutrition(
+        item as any,
+        newGrams,
+        currentOil,
+        density
+      );
+      next[index] = {
+        ...item,
+        ...updated,
+        grams: newGrams,
+      };
+      return next;
+    });
+  };
 
   const currentTextInput = controlledTextInput !== undefined ? controlledTextInput : localTextInput;
   const setInputVal = (val: string) => {
@@ -247,9 +398,28 @@ export default function VibeDietAiScannerView({
     }
   };
 
-  const adjustedGrams = draftItem
-    ? Math.round(draftItem.grams * multiplier * 10) / 10
-    : 0;
+  const hasItems = foodItems.length > 0;
+  const currentTotalGrams = hasItems
+    ? foodItems.reduce((acc, i) => acc + i.grams, 0)
+    : (draftItem?.grams || 0);
+
+  const adjustedGrams = Math.round(currentTotalGrams * multiplier * 10) / 10;
+
+  const currentTotalCalories = hasItems
+    ? foodItems.reduce((acc, i) => acc + i.calories, 0)
+    : (draftItem?.calories || 0);
+
+  const currentTotalProtein = hasItems
+    ? foodItems.reduce((acc, i) => acc + i.protein, 0)
+    : (draftItem?.protein || 0);
+
+  const currentTotalCarbs = hasItems
+    ? foodItems.reduce((acc, i) => acc + i.carbs, 0)
+    : (draftItem?.carbs || 0);
+
+  const currentTotalFat = hasItems
+    ? foodItems.reduce((acc, i) => acc + i.fat, 0)
+    : (draftItem?.fat || 0);
 
   const confidence = draftItem?.confidenceTier.toLowerCase() ?? "";
   const confidenceClass = confidence.includes("high") || confidence.includes("tier 1") || confidence.includes("tier 2")
@@ -592,13 +762,119 @@ export default function VibeDietAiScannerView({
                           {draftItem.title}
                         </h2>
                         <p className="numeric mt-1 text-[10px] text-[var(--text-secondary)]">
-                          Estimated serving: {decimal(draftItem.grams)} g
+                          Estimated serving: {decimal(currentTotalGrams)} g
                         </p>
                       </div>
                       <span className={`shrink-0 rounded-full border px-2.5 py-1.5 text-[9px] font-bold ${confidenceClass}`}>
                         {draftItem.confidenceTier} confidence
                       </span>
                     </div>
+
+                    {/* Detected Food Items Breakdown & Segmented Oil/Ghee Selectors */}
+                    {hasItems && (
+                      <div className="mt-4 space-y-2.5" data-testid="detected-items-list">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
+                            Detected Components ({foodItems.length})
+                          </span>
+                          <span className="text-[9px] text-[var(--text-secondary)]">
+                            0ms instant Atwater recalculation
+                          </span>
+                        </div>
+                        {foodItems.map((item, idx) => {
+                          const badge = getItemConfidenceBadge(item.confidence);
+                          const activeOil = item.oilLevel || "standard";
+                          return (
+                            <div
+                              key={item.id || `food-${idx}`}
+                              data-testid={`detected-item-card-${idx}`}
+                              className="rounded-[16px] border border-[var(--border)] bg-[var(--card)] p-3 shadow-xs"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="truncate text-xs font-bold text-[var(--text-primary)]">
+                                    {item.name}
+                                  </span>
+                                  {item.cookingMethod && (
+                                    <span className="shrink-0 rounded-[6px] bg-[var(--card-subtle)] px-1.5 py-0.5 text-[8.5px] font-semibold text-[var(--text-secondary)]">
+                                      {formatCookingMethod(item.cookingMethod)}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[8.5px] font-bold ${badge.className}`}>
+                                  {badge.text}
+                                </span>
+                              </div>
+
+                              <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
+                                {/* Portion gram controls */}
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] font-medium text-[var(--text-tertiary)]">Portion:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleItemGramsChange(idx, -15)}
+                                    className="h-6 w-6 rounded-[6px] bg-[var(--card-subtle)] text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[var(--active)] cursor-pointer"
+                                    title="Decrease portion mass"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="numeric text-[11px] font-bold text-[var(--text-primary)] min-w-[38px] text-center">
+                                    {item.grams}g
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleItemGramsChange(idx, 15)}
+                                    className="h-6 w-6 rounded-[6px] bg-[var(--card-subtle)] text-[11px] font-bold text-[var(--text-secondary)] hover:bg-[var(--active)] cursor-pointer"
+                                    title="Increase portion mass"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+
+                                {/* Per-item macros */}
+                                <div className="numeric text-[10px] font-semibold text-[var(--text-secondary)]">
+                                  <span className="font-bold text-[var(--tangerine-text)]">{whole(item.calories)}</span> kcal · {decimal(item.protein)}P · {decimal(item.carbs)}C · {decimal(item.fat)}F
+                                </div>
+                              </div>
+
+                              {/* Segmented Oil / Ghee Selector */}
+                              <div className="mt-2.5">
+                                <div className="mb-1 flex items-center justify-between text-[8.5px]">
+                                  <span className="font-semibold text-[var(--text-tertiary)] uppercase tracking-wide">
+                                    Cooking Oil / Ghee Sheen
+                                  </span>
+                                  <span className="text-[var(--text-secondary)]">
+                                    {OIL_FAT_GRAMS_MAP[activeOil] > 0 ? `+${OIL_FAT_GRAMS_MAP[activeOil]}g added fat` : 'No added oil'}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-4 gap-1 rounded-[10px] bg-[var(--card-subtle)] p-1">
+                                  {OIL_LEVEL_OPTIONS.map((opt) => {
+                                    const selected = activeOil === opt.id;
+                                    return (
+                                      <button
+                                        key={opt.id}
+                                        type="button"
+                                        data-testid={`oil-select-${item.id || idx}-${opt.id}`}
+                                        onClick={() => handleItemOilChange(idx, opt.id)}
+                                        aria-pressed={selected}
+                                        className={`rounded-[7px] py-1 text-[9px] font-bold transition-all cursor-pointer ${
+                                          selected
+                                            ? "bg-[#FF6B2C] text-white shadow-xs"
+                                            : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                        }`}
+                                      >
+                                        <span>{opt.label}</span>
+                                        <span className="block text-[7.5px] opacity-80">{opt.grams}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     <div className="mt-5">
                       <div className="mb-2 flex items-center justify-between gap-3">
@@ -642,16 +918,16 @@ export default function VibeDietAiScannerView({
                         <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--tangerine-text)]">Energy</span>
                         <div className="text-right sm:mt-1 sm:text-left">
                           <span className="numeric text-2xl font-extrabold tracking-[-0.06em] text-[var(--text-primary)]">
-                            {whole(draftItem.calories * multiplier)}
+                            {whole(currentTotalCalories * multiplier)}
                           </span>
                           <span className="ml-1 text-[9px] font-medium text-[var(--text-secondary)]">kcal</span>
                         </div>
                       </div>
 
                       {([
-                        ["Protein", draftItem.protein * multiplier, "#0EA5E9"],
-                        ["Carbs", draftItem.carbs * multiplier, "#FF6B2C"],
-                        ["Fat", draftItem.fat * multiplier, "#F43F5E"],
+                        ["Protein", currentTotalProtein * multiplier, "#0EA5E9"],
+                        ["Carbs", currentTotalCarbs * multiplier, "#FF6B2C"],
+                        ["Fat", currentTotalFat * multiplier, "#F43F5E"],
                       ] as const).map(([label, value, color]) => (
                         <div key={label} className="apple-subcard col-span-4 flex items-center justify-between px-4 py-3 sm:col-span-1 sm:block sm:px-3">
                           <div className="flex items-center gap-1.5">
@@ -671,7 +947,7 @@ export default function VibeDietAiScannerView({
                       whileHover={{ y: -1 }}
                       whileTap={{ scale: 0.985 }}
                       disabled={isProcessing}
-                      onClick={() => onConfirmDraft(multiplier, adjustedGrams)}
+                      onClick={() => onConfirmDraft(multiplier, adjustedGrams, hasItems ? foodItems : undefined)}
                       className="mt-5 flex h-13 w-full items-center justify-center gap-2 rounded-[17px] bg-[#FF6B2C] py-4 text-sm font-extrabold text-white shadow-[0_14px_28px_-10px_rgba(255,107,44,0.75)] transition-colors hover:bg-[#ED5B1E] disabled:opacity-50 cursor-pointer"
                     >
                       <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" aria-hidden="true">

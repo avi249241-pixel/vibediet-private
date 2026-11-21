@@ -20,6 +20,14 @@ import {
   activateUserSubscription,
 } from '../services/billingService.js';
 import {
+  AUTHORITATIVE_PLANS,
+  verifyRazorpayPaymentSignature,
+  verifyRazorpayWebhookSignature,
+  updateSupabaseUserTier,
+  signProStatusPayload,
+  type PlanKey,
+} from '../worker/routes/billing.js';
+import {
   ClarifyDraftSchema,
   ConfirmDraftSchema,
   CopyMealSchema,
@@ -1041,6 +1049,145 @@ v1Router.post('/billing/checkout', requireAuth, (req: AuthenticatedRequest, res:
   const gateway = req.body?.gateway === 'stripe' ? 'stripe' : 'razorpay';
   const session = createCheckoutSession(req.user!.uid, plan, gateway);
   res.json({ session });
+});
+
+v1Router.post('/billing/create-order', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+  if (!keyId || !keySecret) {
+    res.status(503).json({ error: 'Razorpay payment gateway keys are not configured' });
+    return;
+  }
+
+  const planKey: PlanKey = req.body?.plan === 'pro_monthly' ? 'pro_monthly' : 'pro_annual';
+  const plan = AUTHORITATIVE_PLANS[planKey];
+  const uid = req.user!.uid;
+
+  const basicAuth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+  try {
+    const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${basicAuth}`,
+      },
+      body: JSON.stringify({
+        amount: plan.amountPaise,
+        currency: plan.currency,
+        receipt: `rcpt_${uid.slice(0, 8)}_${Date.now()}`,
+        notes: { userId: uid, planKey },
+      }),
+    });
+
+    if (!rzpRes.ok) {
+      const errText = await rzpRes.text();
+      res.status(502).json({ error: `Razorpay upstream error: ${errText}` });
+      return;
+    }
+
+    const data: any = await rzpRes.json();
+    res.status(201).json({
+      orderId: data.id,
+      amountPaise: plan.amountPaise,
+      currency: 'INR',
+      keyId,
+      planKey,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: `Network error connecting to Razorpay: ${err?.message || err}` });
+  }
+});
+
+v1Router.post('/billing/verify', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keySecret) {
+    res.status(503).json({ error: 'RAZORPAY_KEY_SECRET is not configured' });
+    return;
+  }
+
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body || {};
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    res.status(400).json({ error: 'Missing required Razorpay verification parameters' });
+    return;
+  }
+
+  const isValid = await verifyRazorpayPaymentSignature(
+    razorpay_order_id,
+    razorpay_payment_id,
+    razorpay_signature,
+    keySecret
+  );
+
+  if (!isValid) {
+    res.status(401).json({ error: 'Invalid Razorpay payment signature' });
+    return;
+  }
+
+  const uid = req.user!.uid;
+  await updateSupabaseUserTier(uid, 'pro');
+  await activateUserSubscription(uid, {
+    id: razorpay_payment_id,
+    uid,
+    gateway: 'Razorpay UPI',
+    plan: 'Annual Pro',
+    amount: 999,
+    currency: 'INR',
+    status: 'captured',
+    createdAt: new Date().toISOString(),
+  });
+
+  const signedToken = await signProStatusPayload(uid);
+  res.json({
+    success: true,
+    verified: true,
+    tier: 'pro',
+    isPro: true,
+    signedToken,
+    orderId: razorpay_order_id,
+    paymentId: razorpay_payment_id,
+  });
+});
+
+v1Router.post('/billing/webhook', async (req: Request, res: Response) => {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    res.status(503).json({ error: 'RAZORPAY_WEBHOOK_SECRET is not configured' });
+    return;
+  }
+
+  const signature = req.headers['x-razorpay-signature'] as string;
+  if (!signature) {
+    res.status(400).json({ error: 'Missing X-Razorpay-Signature header' });
+    return;
+  }
+
+  const rawBody = JSON.stringify(req.body);
+  const isValid = await verifyRazorpayWebhookSignature(rawBody, signature, webhookSecret);
+  if (!isValid) {
+    res.status(401).json({ error: 'Invalid Razorpay webhook signature' });
+    return;
+  }
+
+  const event = req.body?.event;
+  const payment = req.body?.payload?.payment?.entity;
+  const uid = payment?.notes?.userId || payment?.notes?.uid;
+
+  if (uid && (event === 'payment.captured' || event === 'order.paid')) {
+    await updateSupabaseUserTier(uid, 'pro');
+    await activateUserSubscription(uid, {
+      id: payment?.id || `txn_${Date.now()}`,
+      uid,
+      gateway: 'Razorpay UPI',
+      plan: 'Annual Pro',
+      amount: payment?.amount ? payment.amount / 100 : 999,
+      currency: 'INR',
+      status: 'captured',
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  res.json({ status: 'ok', received: true, event });
 });
 
 v1Router.post('/billing/simulate-webhook', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
