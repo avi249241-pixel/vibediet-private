@@ -49,7 +49,12 @@ Earlier iterations explored Railway/Docker (`e14084b` pruned) and Netlify Drop (
 
 ---
 
-## 4. Environment & Cloudflare Production Launch
-1. **Upgrade Node.js to v22.12.0+ LTS:** Current local machine runs Node `v20.18.0`, while `wrangler@4.166.0` requires Node `>= 22.12.0`.
-2. **Authenticate & Push Secrets:** Set `CLOUDFLARE_API_TOKEN` (or run `npx wrangler login`), upload `.env` secrets via `npx wrangler secret bulk .env`, and deploy via `npm run cf:deploy`.
-3. **Post-Deploy Verification:** Whitelist the live `https://vibediet-app.<subdomain>.workers.dev` URL in **Supabase Dashboard → Authentication → URL Configuration**, then verify Google OAuth login, AI meal scan persistence, offline sync flush, `/admin` auth gate, and Razorpay Test UPI checkout.
+## 4. Live Production Cutover Verified
+* **Cloudflare Workers & Static Assets:** Deployed to `https://vibediet-app.avi-vibediet.workers.dev` via `wrangler deploy --secrets-file .env` with 100% of environment secrets encrypted at the edge.
+* **Wrangler Auth Hygiene:** Session immediately terminated via `wrangler logout` with 0 Cloudflare tokens persisted on local disk.
+* **Edge Health & Supabase Reachability:** Verified live via `GET /v1/health`:
+  ```json
+  {"status":"ok","worker":{"runtime":"cloudflare-workers"},"supabase":{"configured":true,"reachable":true}}
+  ```
+* **Production Database:** Connected to Supabase project `bxufxutwupuldzwyzzbv` with all 9 core tables (`vibe_users`, `vibe_meal_sync`, `vibe_weight_sync`, `vibe_meals`, `vibe_day_summaries`, `vibe_biometrics`, `vibe_drafts`, `vibe_system_telemetry`, `vibe_audit_logs`) and least-privilege API role grants active.
+* **Cron Keep-Alive:** Cron trigger `0 3 */3 * *` active on Cloudflare Workers, pinging Supabase REST every 3 days to eliminate free-tier project dormancy.
