@@ -4,6 +4,7 @@ import type { Bindings } from './env.js';
 import { healthRouter } from './routes/health.js';
 import { syncRouter } from './routes/sync.js';
 import { adminRouter } from './routes/admin.js';
+import { billingRouter } from './routes/billing.js';
 import v1Handler from '../../netlify/functions/v1.mts';
 
 export const app = new Hono<{ Bindings: Bindings }>();
@@ -15,6 +16,7 @@ app.use('*', cors());
 app.route('/v1/health', healthRouter);
 app.route('/v1/sync', syncRouter);
 app.route('/v1/admin', adminRouter);
+app.route('/v1/billing', billingRouter);
 
 // Delegate remaining /v1/* routes to the shared Netlify serverless handler
 app.all('/v1/*', async (c) => {

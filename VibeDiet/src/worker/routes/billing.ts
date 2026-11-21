@@ -390,3 +390,23 @@ export async function handleWebhook(
     { status: 200, headers: { 'Content-Type': 'application/json' } }
   );
 }
+
+/**
+ * Hono router for Cloudflare Worker edge mounting.
+ */
+import { Hono } from 'hono';
+import type { Bindings } from '../env.js';
+
+export const billingRouter = new Hono<{ Bindings: Bindings }>();
+
+billingRouter.post('/create-order', async (c) => {
+  return handleCreateOrder(c.req.raw, (c.env || {}) as unknown as BillingEnv);
+});
+
+billingRouter.post('/verify', async (c) => {
+  return handleVerifyPayment(c.req.raw, (c.env || {}) as unknown as BillingEnv);
+});
+
+billingRouter.post('/webhook', async (c) => {
+  return handleWebhook(c.req.raw, (c.env || {}) as unknown as BillingEnv);
+});
